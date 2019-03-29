@@ -1,0 +1,220 @@
+body {
+    background-color: #f7f7f7;
+/*    width: 80%;*/
+/*    max-width: 1000px;*/
+/*    margin: auto;*/
+}
+
+/*@media (max-width: 999px) {*/
+/*    body {*/
+/*        width:100%;*/
+/*    }*/
+/*}*/
+
+.navigation-control {
+    overflow: hidden;
+}
+
+.leftalign {
+    text-align: left;
+}
+
+.rightalign {
+    text-align: right;
+}
+
+@media (min-width: 913px) {
+    .leftalign {
+        text-align: left;
+        padding-left: 2em;
+    }
+
+    .rightalign {
+        text-align: right;
+        padding-right: 2em;
+    }
+}
+
+@media (max-width: 767px) {
+    .leftalign {
+        text-align: center;
+        padding-left: 15px;
+    }
+
+    .rightalign {
+        text-align: center;
+        padding-right: 15px;
+    }
+}
+
+.nopadright {
+    padding-right: 15px;
+}
+
+@media (min-width: 768px) {
+    .nopadright {
+        padding-right: 0px;
+    }
+}
+
+.bluebutton {
+    margin-top: 8px;
+    width: 100%;
+    border-radius: 0px;
+    color: #fff;
+    font-weight: 600;
+    background-color: #003380;
+}
+
+.bluebutton:focus {
+    color: #fff;
+    font-weight: 600;
+    background-color: #003380;
+}
+
+.bluebutton:hover, .bluebutton:active, .bluebutton:active:focus {
+    background-color: #627da7;
+    color: #fff;
+}
+
+.redbutton {
+    color: #fff;
+    font-weight: 600;
+    margin: auto;
+    width: 18em;
+    border-radius: 0px;
+    background-color: #ad1a1f;
+}
+
+.redbutton.clicked {
+    color: #fff;
+    background-color: #ee5450;
+}
+
+.redbutton:focus, .redbutton:hover, .redbutton:active, .redbutton:active:focus {
+    background-color: #ee5450;
+    color: #fff;
+}
+
+#divider {
+	margin: 0px 28px 20px 28px;
+    clear: both;
+    border: 2px solid #333;
+}
+
+#primarybuttons, #secondarybuttons {
+    padding-bottom: 17px;
+    overflow: hidden;
+}
+
+#filterfieldbox, #statisticsbox {
+    border: 1px solid #333;
+    min-height: 10em;
+    width: 18em;
+    padding: 8px;
+    text-align: left;
+}
+
+.float-left {
+    clear: both;
+    float: left;
+}
+
+.float-right {
+    clear:both;
+    float: right;
+}
+
+.numericright {
+    float: right;
+    width: 49%;
+}
+
+.numericleft {
+    float: left;
+    width: 49%;
+}
+
+.font-bold {
+    font-weight: bold;
+    margin: 0px;
+}
+
+.numericleft label, .numericright label {
+    font-weight: normal;
+}
+
+#mapcontainer, #chartcontainer, {
+    border: 1px solid #333;
+    min-height: 50em;
+}
+
+.filtergroup {
+    margin: 4px 0px;
+    padding: 2px 1px;
+    background-color: #ececec;
+}
+
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.filtergroup .form-group, .filtergroup .selectize-control {
+    margin-bottom: 8px;
+}
+
+.flushleft {
+    padding-left: 0px;
+}
+
+.overflow-x-scroll {
+    overflow-x: scroll;
+}
+
+#tablecontainer {
+/*    padding: 0em 1em;*/
+    overflow-y: hidden;
+}
+
+@media (max-width: 826px) {
+    .getwide {
+        width: 100%;
+    }
+}
+
+.downloadbutton {
+    width: 18em;
+    border-radius: 0px;
+    float: left;
+    margin: 0em 1em 1em 1em;
+}
+
+#statistics_open {
+    margin-top: 20px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
