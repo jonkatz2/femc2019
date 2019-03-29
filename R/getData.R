@@ -5,7 +5,8 @@ getData <- function(
     fields=NULL, # list
     where=NULL,  # list
     offset="", # Number
-    limit=""   # Number
+    limit="",  # Number
+    apikey
 ) {
 
     # dataset key
@@ -24,7 +25,7 @@ getData <- function(
     h <- curl::new_handle()
     curl::handle_setopt(h, postfields = jsonlite::toJSON(body, auto_unbox=TRUE));
     curl::handle_setheaders(h,
-        'X-API-KEY'='b@7d',
+        'X-API-KEY'= apikey,
         'Accept'='application/json',
         'Content-Type'='application/json'
     )
@@ -46,7 +47,8 @@ getData <- function(
 #getMetadata("SawKill")
 
 getMetadata <- function(
-    dataset = c("sawkill", "roejan", "nutrients")
+    dataset = c("sawkill", "roejan", "nutrients"),  
+    apikey
 ) {
 
     # dataset key
@@ -61,7 +63,7 @@ getMetadata <- function(
     h <- curl::new_handle()
     curl::handle_setopt(h, postfields = jsonlite::toJSON(body, auto_unbox=TRUE));
     curl::handle_setheaders(h,
-        'X-API-KEY'='b@7d',
+        'X-API-KEY'= apikey,
         'Accept'='application/json',
         'Content-Type'='application/json'
     )
@@ -86,7 +88,8 @@ getMetadata <- function(
 ## This fails with 404 error
 #rjloc <- getLocationData("roejan")
 getLocationData <- function(
-    dataset = c("sawkill", "roejan", "nutrients")
+    dataset = c("sawkill", "roejan", "nutrients"),  
+    apikey
 ) {
 
     # dataset key
@@ -101,7 +104,7 @@ getLocationData <- function(
     h <- curl::new_handle()
     curl::handle_setopt(h, postfields = jsonlite::toJSON(body, auto_unbox=TRUE));
     curl::handle_setheaders(h,
-        'X-API-KEY'='b@7d',
+        'X-API-KEY'= apikey,
         'Accept'='application/json',
         'Content-Type'='application/json'
     )

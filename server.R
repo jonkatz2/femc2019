@@ -6,7 +6,7 @@ options(stringsAsFactors=FALSE)
 #nutrients <- read.csv('data/Nutrients.csv')
 
 source("R/getData.R")
-
+source("apikey.R")
 
 shinyServer(
 	function(input,output,session) {
@@ -47,7 +47,7 @@ shinyServer(
 	    
 	    # get the saw kill locations
 	    getSawkillLocations <- reactive({
-	        dat <- getLocationData("SawKill")
+	        dat <- getLocationData("SawKill", apikey=apikey)
             dat <- locsToSHP(dat)
             dat
 	    })
@@ -92,21 +92,21 @@ shinyServer(
 	    
 	    # get the saw kill table
 	    getSawkillData <- reactive({
-	        dat <- getData("SawKill")
+	        dat <- getData("SawKill", apikey=apikey)
             dat["Date"] <- as.Date(dat[,"Date"])
             dat
 	    })
 	    
 	    # get the roe jan table
 	    getRoeJanData <- reactive({
-	        dat <- getData("roejan")
+	        dat <- getData("roejan", apikey=apikey)
 	        dat["Date_Sampled"] <- as.Date(dat[,"Date_Sampled"])
 	        dat
 	    })
 	    
 	    # get the saw kill nutrient table
 	    getNutrientData <- reactive({
-	        dat <- getData("nutrients")
+	        dat <- getData("nutrients", apikey=apikey)
             dat
 	    })
 	    
