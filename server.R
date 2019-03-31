@@ -52,18 +52,84 @@ shinyServer(
             dat
 	    })
 	    
+	    # Download site location data
+	    output$downloadsitedata <- downloadHandler(
+	        file=function() {
+	            "Sawkill_RoeJan_sitedata.csv"
+	        },
+	        content=function(file) {
+	            dat_s <- getSawkillLocations()
+	            write.csv(dat_s@data, file, row.names=FALSE)
+	        },
+	        contentType="text/csv"
+	    )
+	    
 	    # create a map
 	    output$mapcontent <- renderLeaflet({
 	        dat <- getSawkillLocations()
 	        crds <- unname(rowMeans(bbox(dat)))
+            
+            ## Spelling error: Longtiude!!
+	        content <- paste0("<b>", dat@data[,'Site_Name'], "</b><br/>", "Site: ", dat@data[,'Site_Numbe'], "&nbsp; &nbsp; &nbsp; (", dat@data[,'Latitude'], ", ", dat@data[,'Longtiude'], ")<br/>", dat@data[,'Site_Descr'], '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotosite(\'', dat@data[,'Site_Numbe'], '\')" type="button">View Data</button></div>')
+
 	        m <- leaflet()
             m <- addTiles(m)
-#            m <- addMarkers(m, lng=174.768, lat=-36.852, popup="The birthplace of R")
-            m <- addMarkers(m, data = dat)
+            m <- addCircleMarkers(m, data = dat, popup=content)
             m <- setView(m, lat = crds[2], lng = crds[1], zoom = 12)
             m
         })	    
+        
+        # Go to the site selected from the map
+        observeEvent(input$gotosite, {
+            dat_s <- getSawkillData()
+            sites_s <- unique(dat_s$Site)
+#            dat_r <- getRoeJanData()
+#            sites_r <- unique(dat_r$Site_Name)
+            site <- input$gotosite
+            loc <- site %in% sites_s
+            if(loc) loc <- "SawKill"
+            else loc <- "RoeJan"
+            updateRadioButtons(session, 'location', selected=loc)
+            updateSelectInput(session, 'site', selected=site)
+        }, ignoreInit=TRUE)
+        # Update the site selector to reflect what is onscreen
+        observeEvent(input$location, {
+            session$sendCustomMessage("sawkillonly", message=list(location=input$location))
+        }, ignoreInit=TRUE)
 	    
+	    # Download site map as image
+	    output$downloadmapimage <- downloadHandler(
+	        file=function() {
+	            "Sawkill_RoeJan_sites.png"
+	        },
+	        content=function(file) {
+	            dat <- getSawkillLocations()
+	            crds <- unname(rowMeans(bbox(dat)))
+	            m <- leaflet() 
+	            m <- addTiles(m)
+                m <- addCircleMarkers(m, data = dat)
+                tryCatch(mapview::mapshot(m, file = file), error=function(e) {
+                    webshot::install_phantomjs()
+                    mapview::mapshot(m, file = file)
+                })
+	        },
+	        contentType="image/png"
+	    )
+	    
+	    # Download site map as zipped shapefile
+	    output$downloadmapshapefile <- downloadHandler(
+	        file=function() {
+	            "Sawkill_RoeJan_sitemap.zip"
+	        },
+	        content=function(file) {
+	            if(file.exists("location")) unlink("location", recursive=TRUE)
+	            sawkill <- getSawkillLocations()
+	            rgdal::writeOGR(sawkill, "location", "sawkill", driver="ESRI Shapefile")
+	            zip(file, "location")
+#	            file.rename(paste0(file,".zip"), file)
+	        },
+	        contentType="application/zip"
+	    )
 	    
 	    # Update site and year selector
 	    observe({
@@ -94,6 +160,8 @@ shinyServer(
 	    getSawkillData <- reactive({
 	        dat <- getData("SawKill", apikey=apikey)
             dat["Date"] <- as.Date(dat[,"Date"])
+#	        cat("SawKill\n")
+#            print(colnames(dat))
             dat
 	    })
 	    
@@ -101,6 +169,8 @@ shinyServer(
 	    getRoeJanData <- reactive({
 	        dat <- getData("roejan", apikey=apikey)
 	        dat["Date_Sampled"] <- as.Date(dat[,"Date_Sampled"])
+#	        cat("roejan\n")
+#            print(colnames(dat))
 	        dat
 	    })
 	    

@@ -1,7 +1,8 @@
 fluidPage(
     singleton(tags$head(
         tags$link(rel="stylesheet", type="text/css", href="css/custom.css"),
-        tags$script(src="js/custom.js")
+        tags$script(src="js/custom.js"),
+        tags$script(src="js/messageHandlers.js")
     )),
     h3(class="text-center", "Saw Kill Data"),
     div(class="navigation-control",
@@ -19,7 +20,17 @@ fluidPage(
     ),
     tags$hr(id="divider"),
     div(id="mapcontainer", # HAS STYLING
-        leaflet::leafletOutput("mapcontent", height = 600)
+        leaflet::leafletOutput("mapcontent", height = 600),
+        div(id="mapdownloadoptions",
+            downloadButton("downloadsitedata", "Download Site Data", class="downloadbutton"),
+            div(id="moremapoptions",
+                actionButton("showmapdownloadoptions", "Download Map", icon=icon("caret-right"), class="downloadbutton", onclick="togglecaret(event);"),
+                conditionalPanel("input.showmapdownloadoptions % 2",
+                    downloadButton("downloadmapimage", "Download Image", class="downloadbutton stack"),
+                    downloadButton("downloadmapshapefile", "Download Shapefile", class="downloadbutton stack")
+                )
+            )
+        )
     ),
     div(id="tablecontainer", class="hidden", 
         column(8, class="flushleft, overflow-x-scroll getwide",
@@ -89,6 +100,39 @@ fluidPage(
                             ),
                             span(class="numericright",
                                 numericInput("turbidityMax", "Max", value=NA, min=-100, max=100, step=0.1)
+                            )
+                        )
+                    ),
+                    div(class="filtergroup overflow-hidden sawkillonly",
+                        p(class="font-bold", icon("caret-right"), "E. coli conc.", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("ecoliMin", "Min", value=NA, min=-100, max=100, step=0.1)
+                            ),
+                            span(class="numericright",
+                                numericInput("ecoliMax", "Max", value=NA, min=-100, max=100, step=0.1)
+                            )
+                        )
+                    ),
+                    div(class="filtergroup overflow-hidden",
+                        p(class="font-bold", icon("caret-right"), "Enterococci conc.", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("enterococciMin", "Min", value=NA, min=-100, max=100, step=0.1)
+                            ),
+                            span(class="numericright",
+                                numericInput("enterococciMax", "Max", value=NA, min=-100, max=100, step=0.1)
+                            )
+                        )
+                    ),
+                    div(class="filtergroup overflow-hidden sawkillonly",
+                        p(class="font-bold", icon("caret-right"), "Total coliform conc.", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("coliformMin", "Min", value=NA, min=-100, max=100, step=0.1)
+                            ),
+                            span(class="numericright",
+                                numericInput("coliformMax", "Max", value=NA, min=-100, max=100, step=0.1)
                             )
                         )
                     )

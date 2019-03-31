@@ -96,6 +96,10 @@ body {
     color: #fff;
 }
 
+.narrowbutton {
+    width: 14em;
+}
+
 #divider {
 	margin: 0px 28px 20px 28px;
     clear: both;
@@ -193,9 +197,36 @@ body {
     margin-top: 20px;
 }
 
+#mapdownloadoptions {
+    clear: both;
+    float: right;
+    margin-top: 15px; 
+}
 
+#moremapoptions {
+    display: inline-block;
+    float: right;
+}
 
+#showmapdownloadoptions {
+    display: inline-block;
+    float: right;
+    margin: 0em 1em;
+}
 
+#downloadsitedata {
+    display: inline-block;
+}
+
+.stack {
+    margin: 0em 1em;
+    clear: both;
+    float: right;
+}
+
+#showmapdownloadoptions {
+    clear: both;
+}
 
 
 
