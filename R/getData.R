@@ -1,7 +1,8 @@
 #getData("SawKill", limit=10)
 
 getData <- function(
-    dataset = c("sawkill", "roejan", "nutrients"),
+    location = c("sawkill", "roejan"),
+    dataset = c("chemistry", "nutrients", "landuse"),
     fields=NULL, # list
     where=NULL,  # list
     offset="", # Number
@@ -10,12 +11,16 @@ getData <- function(
 ) {
 
     # dataset key
-    # 2731 = saw kill
-    # 2732 = nutrients
-    # 2733 = roe jan
+    # 2731 = saw kill chemistry
+    # 2732 = saw kill nutrients
+    # 2733 = roe jan chemistry
+    location <- tolower(location)
+    location <- match.arg(location)
     dataset <- tolower(dataset)
     dataset <- match.arg(dataset)
-    datasetid <- switch(dataset, sawkill=2731, nutrients=2732, roejan=2733)
+    if(location == "sawkill") datasetid <- switch(dataset, chemistry=2731, nutrients=2732)
+    else if(location == "roejan") datasetid <- switch(dataset, chemistry=2733)
+    
     if(!length(fields)) fields <- "[]"
     else fields <- jsonlite::toJSON(fields, auto_unbox=TRUE)
     if(!length(where)) where <- "[]"
@@ -41,6 +46,8 @@ getData <- function(
         })
         dat <- do.call(rbind.data.frame, dat)
     } 
+    # Coerce numbers-as-string to numeric
+    for(i in 1:ncol(dat)) dat[i] <- tryCatch(as.numeric(dat[,i]), warning=function(w) dat[,i])
     dat
 }
 
@@ -133,7 +140,12 @@ locsToSHP <- function(locs) {
 }
 
 
-
+# match column name with dataset
+#columnName('temp', 'SawKill', 'chemistry', columnNames)
+columnName <- function(selection, location, metric, lookup) {
+    colval <- paste0(location, "_", metric)
+    lookup[lookup$selection==selection, colval]
+}
 
 
 

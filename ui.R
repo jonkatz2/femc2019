@@ -19,6 +19,7 @@ fluidPage(
         uiOutput("secondarybuttons")
     ),
     tags$hr(id="divider"),
+    # Study sites
     div(id="mapcontainer", # HAS STYLING
         leaflet::leafletOutput("mapcontent", height = 600),
         div(id="mapdownloadoptions",
@@ -32,6 +33,7 @@ fluidPage(
             )
         )
     ),
+    # Table view
     div(id="tablecontainer", class="hidden", 
         column(8, class="flushleft, overflow-x-scroll getwide",
             downloadButton("downloadfulltable", "Download Full Data", class="downloadbutton"),
@@ -45,18 +47,21 @@ fluidPage(
                     $("#filterfield_open").click(function(event) { showfilters(event) });'
                 ),
                 div(id="filterfieldbox", class="float-right",
+                    # Date
                     div(class="filtergroup", 
                         p(class="font-bold", icon("caret-right"), "Date", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             dateRangeInput("filterdaterange", NULL, start="1901-01-01", width="100%")
                         )
                     ),
+                    # Year
                     div(class="filtergroup",
                         p(class="font-bold", icon("caret-right"), "Year", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             selectizeInput("year", NULL, choices=list(), multiple=TRUE, options = list(plugins=list('remove_button')), width="100%")
                         )
                     ),
+                    # Location
                     div(class="filtergroup",
                         p(class="font-bold", icon("caret-right"), "Location", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
@@ -64,13 +69,15 @@ fluidPage(
 #                            selectizeInput("location", NULL, choices=c(`Saw Kill`="SawKill", `Roe Jan`="Roe Jan"), multiple=TRUE, options = list(plugins=list('remove_button')), width="100%")
                         )
                     ),
+                    # Site
                     div(class="filtergroup",
                         p(class="font-bold", icon("caret-right"), "Site", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             selectizeInput("site", NULL, choices=list(), multiple=TRUE, options = list(plugins=list('remove_button')), width="100%")
                         )
                     ),
-                    div(class="filtergroup overflow-hidden",
+                    # Temperature
+                    div(class="filtergroup overflow-hidden chemistry",
                         p(class="font-bold", icon("caret-right"), "Temperature", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
@@ -81,7 +88,8 @@ fluidPage(
                             )
                         )
                     ),
-                    div(class="filtergroup overflow-hidden",
+                    # Conductivity
+                    div(class="filtergroup overflow-hidden chemistry",
                         p(class="font-bold", icon("caret-right"), "Conductivity", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
@@ -92,7 +100,8 @@ fluidPage(
                             )
                         )
                     ),
-                    div(class="filtergroup overflow-hidden",
+                    # Turbidity
+                    div(class="filtergroup overflow-hidden chemistry",
                         p(class="font-bold", icon("caret-right"), "Turbidity", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
@@ -103,7 +112,8 @@ fluidPage(
                             )
                         )
                     ),
-                    div(class="filtergroup overflow-hidden sawkillonly",
+                    # E. coli
+                    div(class="filtergroup overflow-hidden chemistry sawkillonly",
                         p(class="font-bold", icon("caret-right"), "E. coli conc.", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
@@ -114,7 +124,8 @@ fluidPage(
                             )
                         )
                     ),
-                    div(class="filtergroup overflow-hidden",
+                    # Enterococci conc
+                    div(class="filtergroup overflow-hidden chemistry",
                         p(class="font-bold", icon("caret-right"), "Enterococci conc.", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
@@ -125,14 +136,75 @@ fluidPage(
                             )
                         )
                     ),
-                    div(class="filtergroup overflow-hidden sawkillonly",
+                    # Total coliform
+                    div(class="filtergroup overflow-hidden chemistry sawkillonly",
                         p(class="font-bold", icon("caret-right"), "Total coliform conc.", onclick="togglefilter(event);"),
                         span(class="filter hidden", 
                             span(class="numericleft",
-                                numericInput("coliformMin", "Min", value=NA, min=-100, max=100, step=0.1)
+                                numericInput("totcoliformMin", "Min", value=NA, min=-100, max=100, step=0.1)
                             ),
                             span(class="numericright",
-                                numericInput("coliformMax", "Max", value=NA, min=-100, max=100, step=0.1)
+                                numericInput("totcoliformMax", "Max", value=NA, min=-100, max=100, step=0.1)
+                            )
+                        )
+                    ),
+                    # Ammonium
+                    div(class="filtergroup overflow-hidden nutrients hidden",
+                        p(class="font-bold", icon("caret-right"), "Ammonium", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("ammoniumMin", "Min", value=NA, min=-100, max=100, step=0.01)
+                            ),
+                            span(class="numericright",
+                                numericInput("ammoniumMax", "Max", value=NA, min=-100, max=100, step=0.01)
+                            )
+                        )
+                    ),
+                    # Nitrate
+                    div(class="filtergroup overflow-hidden nutrients hidden",
+                        p(class="font-bold", icon("caret-right"), "Nitrate", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("nitrateMin", "Min", value=NA, min=-100, max=100, step=0.01)
+                            ),
+                            span(class="numericright",
+                                numericInput("nitrateMax", "Max", value=NA, min=-100, max=100, step=0.01)
+                            )
+                        )
+                    ),
+                    # Phosphate
+                    div(class="filtergroup overflow-hidden nutrients hidden",
+                        p(class="font-bold", icon("caret-right"), "Phosphate", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("phosphateMin", "Min", value=NA, min=-100, max=100, step=0.001)
+                            ),
+                            span(class="numericright",
+                                numericInput("phosphateMax", "Max", value=NA, min=-100, max=100, step=0.001)
+                            )
+                        )
+                    ),
+                    # Total Nitrogen
+                    div(class="filtergroup overflow-hidden nutrients hidden",
+                        p(class="font-bold", icon("caret-right"), "Total Nitrogen", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("totalNMin", "Min", value=NA, min=-100, max=100, step=0.01)
+                            ),
+                            span(class="numericright",
+                                numericInput("totalNMax", "Max", value=NA, min=-100, max=100, step=0.01)
+                            )
+                        )
+                    ),
+                    # Total Phosphorus
+                    div(class="filtergroup overflow-hidden nutrients hidden",
+                        p(class="font-bold", icon("caret-right"), "Total Phosphorus", onclick="togglefilter(event);"),
+                        span(class="filter hidden", 
+                            span(class="numericleft",
+                                numericInput("totalPMin", "Min", value=NA, min=-100, max=100, step=0.001)
+                            ),
+                            span(class="numericright",
+                                numericInput("totalPMax", "Max", value=NA, min=-100, max=100, step=0.001)
                             )
                         )
                     )
@@ -152,7 +224,20 @@ fluidPage(
             )
         )
     ),
-    div(id="chartcontainer", # HAS STYLING
-        uiOutput("chartcontent")
+    # Chart view
+    div(id="chartcontainer", class="hidden", # HAS STYLING
+        div(id="chartoptions",
+            span(class="select-row", selectInput("graphtype", "Graph Type", choices=c(`Line/points`="o", Line="l", Points="p"))),
+            span(class="select-row", selectInput("xaxis", "Data for X Axis", choices=c(Date="date"))), 
+            span(class="select-row", selectInput("yaxis", "Data for Y Axis", choices=list())),
+            span(class="select-row", selectInput("split", "Split By", choices=c(Site="site", Year="year")))
+        ),
+
+        plotOutput("chartcontent", height="500px"),
+        div(id="chartbuttons",
+            actionButton("chartinformation", "Chart Information", class="downloadbutton"),
+            downloadButton("downloadchart", "Download Chart", class="downloadbutton"),
+            actionButton("chart_statistics", "Statistics", class="downloadbutton")
+        )
     )
 )

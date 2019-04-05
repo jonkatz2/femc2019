@@ -1,0 +1,17 @@
+selection,SawKill_chemistry,RoeJan_chemistry,SawKill_nutrients,SawKill_location
+date,Date,Date_Sampled,DateSampled,
+year,Year,Year,Year,
+site,Site,Site_Name,Site,Site_Numbe
+temp,Temperature_C,Temperature_Celsius,,
+cond,UncompensatedConductivity_C,Conductivity_uS,,
+turb,Turbidity_NTU,Turbidity_NTU_Edited,,
+ecoli,EcoliConc_CFU100ml,,,
+enteroc,Enterococci_conc_CFU100ml,Enterococcus_Concentration_CFU/100mL,,
+totcoliform,Tot_coliform_conc_CFU100ml,,,
+ammonium,,,Ammonium_mgL,
+nitrate,,,Nitrate_N,
+phosphate,,,Phosphate_P,
+totalN,,,Total_Nitrogen,
+TotalP,,,Total__Phosphorus,
+lng,,,,Longtiude
+lat,,,,Latitude

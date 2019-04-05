@@ -5,5 +5,6 @@ library(jsonlite)
 library(rgdal)
 library(sp)
 library(leaflet)
+library(reshape2)
 library(mapview) # requires libudunits2.so (from libudunits2-dev), then webshot::install_phantomjs()()
 
