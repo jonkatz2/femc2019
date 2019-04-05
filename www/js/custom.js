@@ -42,13 +42,22 @@ function showstatistics(event) {
     $("#statisticsbox").removeClass("hidden");
 };
 
-//make the buttons indicate a current state
-function clicked(event) {
-    $("#secondarybuttons").find(".redbutton").each(function() {
+//make the metric buttons indicate a current state
+function clickedmetric(event) {
+    $("#metricbuttons").find(".redbutton").each(function() {
         $(this).removeClass("clicked")
     });
     $(event.target).addClass(" clicked");
 };
+
+//make the map buttons indicate a current state
+function clickedmap(event) {
+    $("#mapbuttons").find(".redbutton").each(function() {
+        $(this).removeClass("clicked")
+    });
+    $(event.target).addClass(" clicked");
+};
+
 
 //toggle visibility of filters when clicked
 function togglefilter(event) {

@@ -269,14 +269,104 @@ body {
 }
 
 
+.leaflet-label-hidden.leaflet-tooltip-right::before {
+	left: 0;
+	margin-left: 0px;
+	border-right-color: transparent;
+	right: 0;
+	margin-right: 0px;
+	border-left-color: transparent;
+	top: 0;
+	margin-top: 0px;
+	border-top-color: transparent;
+	bottom: 0;
+	margin-bottom: 0px;
+	border-bottom-color: transparent;
+}
 
+.leaflet-label-hidden.leaflet-tooltip-left::before {
+	left: 0;
+	margin-left: 15px;
+	border-right-color: transparent;
+	right: 0;
+	margin-right: 0px;
+	border-left-color: transparent;
+	top: 0;
+	margin-top: 0px;
+	border-top-color: transparent;
+	bottom: 0;
+	margin-bottom: 0px;
+	border-bottom-color: transparent;
+}
 
+.leaflet-label-hidden.leaflet-tooltip-top::before {
+	left: 0;
+	margin-left: 0px;
+	border-right-color: transparent;
+	right: 0;
+	margin-right: 0px;
+	border-left-color: transparent;
+	top: 0;
+	margin-top: 0px;
+	border-top-color: transparent;
+	bottom: 0;
+	margin-bottom: 0px;
+	border-bottom-color: transparent;
+}
 
+.leaflet-label-hidden.leaflet-tooltip-bottom::before {
+	left: 0;
+	margin-left: 0px;
+	border-right-color: transparent;
+	right: 0;
+	margin-right: 0px;
+	border-left-color: transparent;
+	top: 0;
+	margin-top: 0px;
+	border-top-color: transparent;
+	bottom: 0;
+	margin-bottom: 0px;
+	border-bottom-color: transparent;
+}
 
+.leaflet-label-hidden.leaflet-tooltip {
+	position: absolute;
+	padding: 6px;
+	background-color: transparent;
+	border: none;
+	border-radius: 3px;
+	color: #222;
+	white-space: nowrap;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	pointer-events: none;
+	box-shadow: none;
+}
 
+.leaflet-label-hidden.leaflet-tooltip-top::before, .leaflet-label-hidden.leaflet-tooltip-bottom::before, .leaflet-label-hidden.leaflet-tooltip-left::before, .leaflet-label-hidden.leaflet-tooltip-right::before {
+	position: absolute;
+	pointer-events: none;
+	/* border: 6px solid transparent; */
+	background: transparent;
+	content: "";
+}
 
+.leaflet-label-hidden {
+    font-weight: bold;
+    background-color: transparent;
+    border-color: transparent;
+}
 
-
-
-
+.leaflet-label-hidden.leaflet-tooltip-top, .leaflet-label-hidden.leaflet-tooltip-right, .leaflet-label-hidden.leaflet-tooltip-bottom {
+	 margin-top: 0px; 
+	 margin-right: 0px;
+	 margin-bottom: 0px;
+	 margin-left: 0px;
+ 	 padding-top: 0px; 
+	 padding-right: 0px;
+	 padding-bottom: 0px;
+	 padding-left: 0px;
+}
 

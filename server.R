@@ -10,13 +10,16 @@ if(!length(suppressMessages(webshot:::find_phantom()))) webshot::install_phantom
 source("R/getData.R")
 source("apikey.R")
 
-columnNames <- read.csv('data/columnNames.csv')
+#columnNames <- read.csv('data/columnNames.csv')
+
+columnNames <- makeColNameTab(apikey)
 
 
 shinyServer(
 	function(input,output,session) {
 	    navigation <- reactiveValues(
 	        currentview = "mapview",
+	        currentmap = "sites",
 	        currentmetric = "chemistry"
 	    )
 	    
@@ -37,18 +40,34 @@ shinyServer(
 	            metric <- navigation$currentmetric
 	            clicked <- c("redbutton", "redbutton", "redbutton")
 	            clicked[c("chemistry", "nutrients", "landuse") == metric] <- "redbutton clicked"
-	            output$secondarybuttons <- renderUI(list(
+	            output$secondarybuttons <- renderUI(div(id="metricbuttons",
                     column(4, class="leftalign", actionButton("chemistry_open", "Chemistry Data", class=clicked[1])),
                     column(4, class="text-center", actionButton("nutrients_open", "Nutrients Data", class=clicked[2])),
                     column(4, class="rightalign", actionButton("landcover_open", "Land Cover Data", class=clicked[3])),
                     tags$script('
-                        $("#chemistry_open").click(function() { clicked(event); });
-                        $("#nutrients_open").click(function(event) { clicked(event); });
-                        $("#landcover_open").click(function(event) { clicked(event); });'
+                        $("#chemistry_open").click(function(event) { clickedmetric(event); });
+                        $("#nutrients_open").click(function(event) { clickedmetric(event); });
+                        $("#landcover_open").click(function(event) { clickedmetric(event); });'
                     )
                 ))
-	        } else output$secondarybuttons <- NULL
+	        } else {
+	            map <- navigation$currentmap
+	            clicked <- c("redbutton", "redbutton")
+	            clicked[c("sites", "basins") == map] <- "redbutton clicked"
+	            output$secondarybuttons <- renderUI(div(id="mapbuttons",
+                    column(6, class="text-center", actionButton("sites_open", "Plots", class=clicked[1])),
+                    column(6, class="text-center", actionButton("basins_open", "Sub Basins", class=clicked[2])),
+                    tags$script('
+                        $("#sites_open").click(function(event) { clickedmap(event); });
+                        $("#basins_open").click(function(event) { clickedmap(event); });'
+                    )
+                ))
+	        }
 	    })
+	    
+	    # Change the buttons to table/chart options
+	    observeEvent(input$sites_open, navigation$currentmap <- "sites")
+	    observeEvent(input$basins_open, navigation$currentmap <- "basins")
 	    
 	    # get the saw kill locations
 	    getSawkillLocations <- reactive({
@@ -69,8 +88,8 @@ shinyServer(
 	        contentType="text/csv"
 	    )
 	    
-	    # create a map
-	    output$mapcontent <- renderLeaflet({
+	    # Make the map of sawkill points
+	    sitesmap <- reactive({
 	        dat <- getSawkillLocations()
 	        crds <- unname(rowMeans(bbox(dat)))
             
@@ -91,6 +110,59 @@ shinyServer(
             )
             m <- setView(m, lat = crds[2], lng = crds[1], zoom = 12)
             m
+	    })
+	    
+	    # Make the map of sawkill subbasins
+	    basinsmap <- reactive({
+	        dat <-readOGR("data/Subbasins_revised", "Subbasins_revised")
+	        dat <- spTransform(dat, CRS("+init=epsg:4326"))
+	        crds <- unname(rowMeans(bbox(dat)))
+            colorpal1 <- brewer.pal(7, "RdYlBu")
+            colorpal2 <- brewer.pal(7, "PRGn")
+            colorpal3 <- rev(brewer.pal(6, "BrBG"))
+            colorpal <- c(colorpal1, colorpal2, colorpal3)
+	        content <- paste0("<b>Basin Letter ID: ", dat@data[,'Letter_ID'], "</b><br/>", "Watershed: ", dat@data[,'WSHED3'], "<br/>Acres: ", dat@data[,'Acres'], '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotobasin(\'', dat@data[,'Letter_ID'], '\')" type="button">View Data</button></div>')
+            labels <- dat@data[,"Letter_ID"]
+#            direction <- rep(c("top", "left", "bottom", "right"), ceiling(length(labels)/4))
+	        m <- leaflet(dat)
+            m <- addTiles(m)
+            for(i in 1:nrow(dat))
+            m <- addPolygons(m,
+                data = dat[i, ],
+                color = "#444444", 
+                weight = 1, 
+                smoothFactor = 0.5,
+                opacity = 1, 
+                fillOpacity = 0.5,
+                fillColor = colorpal[i],
+                highlightOptions = highlightOptions(
+                    color = "white", 
+                    weight = 2,
+                    bringToFront = TRUE
+                ),
+                popup = content[i],
+                label = labels[i]
+            )
+            m <- addLabelOnlyMarkers(m, 
+                lng=coordinates(dat)[,1],
+                lat=coordinates(dat)[,2],
+                labelOptions = labelOptions(
+                    noHide = TRUE, 
+                    className="leaflet-label-hidden",
+                    direction="top"
+                ),
+                label = labels
+            )
+            m <- setView(m, lat = crds[2], lng = crds[1], zoom = 12)
+            m
+	    })
+
+	    # display the map
+	    output$mapcontent <- renderLeaflet({
+	        currentmap <- navigation$currentmap
+	        if(currentmap == "sites") map <- sitesmap()
+	        else map <- basinsmap()
+	        map
         })	    
         
         # Go to the site selected from the map
@@ -109,6 +181,9 @@ shinyServer(
             updateSelectizeInput(session, 'site', choices=setNames(nm=sites), selected=site)
         }, ignoreInit=TRUE)
         
+        
+        
+        
         # Update the filters with sawkill-only filters
         observeEvent(input$location, {
             session$sendCustomMessage("togglesawkillonlyfilters", message=list(location=input$location))
@@ -125,12 +200,11 @@ shinyServer(
 	            "Sawkill_RoeJan_sites.png"
 	        },
 	        content=function(file) {
-	            dat <- getSawkillLocations()
-	            crds <- unname(rowMeans(bbox(dat)))
-	            m <- leaflet() 
-	            m <- addTiles(m)
-                m <- addCircleMarkers(m, data = dat)
-                mapview::mapshot(m, file = file)
+	            currentmap <- navigation$currentmap
+	            if(currentmap == "sites") map <- sitesmap()
+	            else map <- basinsmap()
+	            map
+                mapview::mapshot(map, file = file)
 	        },
 	        contentType="image/png"
 	    )
@@ -182,7 +256,7 @@ shinyServer(
 	    
 	    # get the saw kill table from FEMC
 	    getSawKillChemData <- reactive({
-	        dat <- getData("SawKill", "chemistry", apikey=apikey)
+	        dat <- getData("sawkill", "chemistry", apikey=apikey)
 	        metric <- navigation$currentmetric
 	        datecol <- columnName('date', input$location, metric, columnNames)
 	        dat[,datecol] <- as.Date(dat[,datecol])
@@ -204,7 +278,7 @@ shinyServer(
 	    
 	    # get the saw kill nutrient table from FEMC
 	    getSawKillNutrientData <- reactive({
-	        dat <- getData("SawKill", "nutrients", apikey=apikey)
+	        dat <- getData("sawkill", "nutrients", apikey=apikey)
 	        metric <- navigation$currentmetric
 	        datecol <- columnName('date', input$location, metric, columnNames)
 	        dat[,datecol] <- as.Date(dat[,datecol])
@@ -225,7 +299,7 @@ shinyServer(
 	    
 #	    # get the saw kill land use table from FEMC
 #	    getSawkillLandUseData <- reactive({
-#	        dat <- getData("SawKill", "landuse", apikey=apikey)
+#	        dat <- getData("sawkill", "landuse", apikey=apikey)
 ##	        cat("land use\n")
 ##            print(colnames(dat))
 #            dat
@@ -267,36 +341,36 @@ shinyServer(
 	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
 	        datefilter <- paste0("dat[,'", columnName('date', location, metric, columnNames), "'] >= as.Date('", daterange[1], "') & ", "dat[,'", columnName('date', location, metric, columnNames), "'] <= as.Date('", daterange[2], "')")
 	        
-	        if(!is.na(tempMin)) tempminfilter <- paste0("dat[,'", columnName('temp', location, metric, columnNames), "'] >= ", tempMin)
-	        if(!is.na(tempMax)) tempmaxfilter <- paste0("dat[,'", columnName('temp', location, metric, columnNames), "'] <= ", tempMax)
-	        if(!is.na(conductivityMin)) condminfilter <- paste0("dat[,'", columnName('cond', location, metric, columnNames), "'] >= ", conductivityMin)
-	        if(!is.na(conductivityMax)) condmaxfilter <- paste0("dat[,'", columnName('cond', location, metric, columnNames), "'] <= ", conductivityMax)
-	        if(!is.na(turbidityMin)) turbminfilter <- paste0("dat[,'", columnName('turb', location, metric, columnNames), "'] >= ", turbidityMin)
-	        if(!is.na(turbidityMax)) turbmaxfilter <- paste0("dat[,'", columnName('turb', location, metric, columnNames), "'] <= ", turbidityMax)
+	        if(!is.na(tempMin)) tempminfilter <- paste0("dat[,'", columnName('temperature', location, metric, columnNames), "'] >= ", tempMin)
+	        if(!is.na(tempMax)) tempmaxfilter <- paste0("dat[,'", columnName('temperature', location, metric, columnNames), "'] <= ", tempMax)
+	        if(!is.na(conductivityMin)) condminfilter <- paste0("dat[,'", columnName('conductivity', location, metric, columnNames), "'] >= ", conductivityMin)
+	        if(!is.na(conductivityMax)) condmaxfilter <- paste0("dat[,'", columnName('conductivity', location, metric, columnNames), "'] <= ", conductivityMax)
+	        if(!is.na(turbidityMin)) turbminfilter <- paste0("dat[,'", columnName('turbidity', location, metric, columnNames), "'] >= ", turbidityMin)
+	        if(!is.na(turbidityMax)) turbmaxfilter <- paste0("dat[,'", columnName('turbidity', location, metric, columnNames), "'] <= ", turbidityMax)
 	        
 	        if(!is.na(ecoliMin)) ecoliminfilter <- paste0("dat[,'", columnName('ecoli', location, metric, columnNames), "'] >= ", ecoliMin)
 	        if(!is.na(ecoliMax)) ecolimaxfilter <- paste0("dat[,'", columnName('ecoli', location, metric, columnNames), "'] <= ", ecoliMax)
-	        if(!is.na(enterococciMin)) enterocminfilter <- paste0("dat[,'", columnName('enteroc', location, metric, columnNames), "'] >= ", enterococciMin)
-	        if(!is.na(enterococciMax)) enterocmaxfilter <- paste0("dat[,'", columnName('enteroc', location, metric, columnNames), "'] <= ", enterococciMax)
-	        if(!is.na(totcoliformMin)) totcoliformminfilter <- paste0("dat[,'", columnName('totcoliform', location, metric, columnNames), "'] >= ", totcoliformMin)
-	        if(!is.na(totcoliformMax)) totcoliformmaxfilter <- paste0("dat[,'", columnName('totcoliform', location, metric, columnNames), "'] <= ", totcoliformMax)
+	        if(!is.na(enterococciMin)) enterocminfilter <- paste0("dat[,'", columnName('enterococc', location, metric, columnNames), "'] >= ", enterococciMin)
+	        if(!is.na(enterococciMax)) enterocmaxfilter <- paste0("dat[,'", columnName('enterococc', location, metric, columnNames), "'] <= ", enterococciMax)
+	        if(!is.na(totcoliformMin)) totcoliformminfilter <- paste0("dat[,'", columnName('coliform', location, metric, columnNames), "'] >= ", totcoliformMin)
+	        if(!is.na(totcoliformMax)) totcoliformmaxfilter <- paste0("dat[,'", columnName('coliform', location, metric, columnNames), "'] <= ", totcoliformMax)
 	        
             # Remove missing values
             if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'", columnName('site', location, metric, columnNames), "'])")
-            if(length(tempminfilter)) tempminfilter <- paste0(tempminfilter, " & !is.na(dat[,'", columnName('temp', location, metric, columnNames), "'])")
-            if(length(tempmaxfilter)) tempmaxfilter <- paste0(tempmaxfilter, " & !is.na(dat[,'", columnName('temp', location, metric, columnNames), "'])")
-            if(length(condminfilter)) condminfilter <- paste0(condminfilter, " & !is.na(dat[,'", columnName('cond', location, metric, columnNames), "'])")
-            if(length(condmaxfilter)) condmaxfilter <- paste0(condmaxfilter, " & !is.na(dat[,'", columnName('cond', location, metric, columnNames), "'])")
-            if(length(turbminfilter)) turbminfilter <- paste0(turbminfilter, " & !is.na(dat[,'", columnName('turb', location, metric, columnNames), "'])")
-            if(length(turbmaxfilter)) turbmaxfilter <- paste0(turbmaxfilter, " & !is.na(dat[,'", columnName('turb', location, metric, columnNames), "'])")
+            if(length(tempminfilter)) tempminfilter <- paste0(tempminfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
+            if(length(tempmaxfilter)) tempmaxfilter <- paste0(tempmaxfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
+            if(length(condminfilter)) condminfilter <- paste0(condminfilter, " & !is.na(dat[,'", columnName('conductivity', location, metric, columnNames), "'])")
+            if(length(condmaxfilter)) condmaxfilter <- paste0(condmaxfilter, " & !is.na(dat[,'", columnName('conductivity', location, metric, columnNames), "'])")
+            if(length(turbminfilter)) turbminfilter <- paste0(turbminfilter, " & !is.na(dat[,'", columnName('turbidity', location, metric, columnNames), "'])")
+            if(length(turbmaxfilter)) turbmaxfilter <- paste0(turbmaxfilter, " & !is.na(dat[,'", columnName('turbidity', location, metric, columnNames), "'])")
             if(length(datefilter)) datefilter <- paste0(datefilter, " & !is.na(dat[,'", columnName('date', location, metric, columnNames), "'])")
             
 	        if(length(ecoliminfilter)) ecoliminfilter <- paste0(" & !is.na(dat[,'", columnName('ecoli', location, metric, columnNames), "'])")
 	        if(length(ecolimaxfilter)) ecolimaxfilter <- paste0(" & !is.na(dat[,'", columnName('ecoli', location, metric, columnNames), "'])")
 	        if(length(enterocminfilter)) enterocminfilter <- paste0(" & !is.na(dat[,'", columnName('enteroc', location, metric, columnNames), "'])")
 	        if(length(enterocmaxfilter)) enterocmaxfilter <- paste0(" & !is.na(dat[,'", columnName('enteroc', location, metric, columnNames), "'])")
-	        if(length(totcoliformminfilter)) totcoliformminfilter <- paste0(" & !is.na(dat[,'", columnName('totcoliform', location, metric, columnNames), "'])")
-	        if(length(totcoliformmaxfilter)) totcoliformmaxfilter <- paste0(" & !is.na(dat[,'", columnName('totcoliform', location, metric, columnNames), "'])")
+	        if(length(totcoliformminfilter)) totcoliformminfilter <- paste0(" & !is.na(dat[,'", columnName('coliform', location, metric, columnNames), "'])")
+	        if(length(totcoliformmaxfilter)) totcoliformmaxfilter <- paste0(" & !is.na(dat[,'", columnName('coliform', location, metric, columnNames), "'])")
 
 	        allfilters <- c(sitefilter, yearfilter, datefilter, tempminfilter, tempmaxfilter, condminfilter, condmaxfilter, turbminfilter, turbmaxfilter, ecoliminfilter, ecolimaxfilter, enterocminfilter, enterocmaxfilter, totcoliformminfilter, totcoliformmaxfilter, ecoliminfilter, ecolimaxfilter, enterocminfilter, enterocmaxfilter, totcoliformminfilter, totcoliformmaxfilter)
 	        
@@ -333,24 +407,24 @@ shinyServer(
 	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
 	        datefilter <- paste0("dat[,'", columnName('date', location, metric, columnNames), "'] >= as.Date('", daterange[1], "') & ", "dat[,'", columnName('date', location, metric, columnNames), "'] <= as.Date('", daterange[2], "')")
 	        
-	        if(!is.na(tempMin)) tempminfilter <- paste0("dat[,'", columnName('temp', location, metric, columnNames), "'] >= ", tempMin)
-	        if(!is.na(tempMax)) tempmaxfilter <- paste0("dat[,'", columnName('temp', location, metric, columnNames), "'] <= ", tempMax)
-	        if(!is.na(conductivityMin)) condminfilter <- paste0("dat[,'", columnName('cond', location, metric, columnNames), "'] >= ", conductivityMin)
-	        if(!is.na(conductivityMax)) condmaxfilter <- paste0("dat[,'", columnName('cond', location, metric, columnNames), "'] <= ", conductivityMax)
-	        if(!is.na(turbidityMin)) turbminfilter <- paste0("dat[,'", columnName('turb', location, metric, columnNames), "'] >= ", turbidityMin)
-	        if(!is.na(turbidityMax)) turbmaxfilter <- paste0("dat[,'", columnName('turb', location, metric, columnNames), "'] <= ", turbidityMax)
+	        if(!is.na(tempMin)) tempminfilter <- paste0("dat[,'", columnName('temperature', location, metric, columnNames), "'] >= ", tempMin)
+	        if(!is.na(tempMax)) tempmaxfilter <- paste0("dat[,'", columnName('temperature', location, metric, columnNames), "'] <= ", tempMax)
+	        if(!is.na(conductivityMin)) condminfilter <- paste0("dat[,'", columnName('conductivity', location, metric, columnNames), "'] >= ", conductivityMin)
+	        if(!is.na(conductivityMax)) condmaxfilter <- paste0("dat[,'", columnName('conductivity', location, metric, columnNames), "'] <= ", conductivityMax)
+	        if(!is.na(turbidityMin)) turbminfilter <- paste0("dat[,'", columnName('turbidity', location, metric, columnNames), "'] >= ", turbidityMin)
+	        if(!is.na(turbidityMax)) turbmaxfilter <- paste0("dat[,'", columnName('turbidity', location, metric, columnNames), "'] <= ", turbidityMax)
             
 	        if(!is.na(enterococciMin)) enterocminfilter <- paste0("dat[,'", columnName('enteroc', location, metric, columnNames), "'] >= ", enterococciMin)
 	        if(!is.na(enterococciMax)) enterocmaxfilter <- paste0("dat[,'", columnName('enteroc', location, metric, columnNames), "'] <= ", enterococciMax)
 	        
             # Remove missing values
             if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'", columnName('site', location, metric, columnNames), "'])")
-            if(length(tempminfilter)) tempminfilter <- paste0(tempminfilter, " & !is.na(dat[,'", columnName('temp', location, metric, columnNames), "'])")
-            if(length(tempmaxfilter)) tempmaxfilter <- paste0(tempmaxfilter, " & !is.na(dat[,'", columnName('temp', location, metric, columnNames), "'])")
-            if(length(condminfilter)) condminfilter <- paste0(condminfilter, " & !is.na(dat[,'", columnName('cond', location, metric, columnNames), "'])")
-            if(length(condmaxfilter)) condmaxfilter <- paste0(condmaxfilter, " & !is.na(dat[,'", columnName('cond', location, metric, columnNames), "'])")
-            if(length(turbminfilter)) turbminfilter <- paste0(turbminfilter, " & !is.na(dat[,'", columnName('turb', location, metric, columnNames), "'])")
-            if(length(turbmaxfilter)) turbmaxfilter <- paste0(turbmaxfilter, " & !is.na(dat[,'", columnName('turb', location, metric, columnNames), "'])")
+            if(length(tempminfilter)) tempminfilter <- paste0(tempminfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
+            if(length(tempmaxfilter)) tempmaxfilter <- paste0(tempmaxfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
+            if(length(condminfilter)) condminfilter <- paste0(condminfilter, " & !is.na(dat[,'", columnName('conductivity', location, metric, columnNames), "'])")
+            if(length(condmaxfilter)) condmaxfilter <- paste0(condmaxfilter, " & !is.na(dat[,'", columnName('conductivity', location, metric, columnNames), "'])")
+            if(length(turbminfilter)) turbminfilter <- paste0(turbminfilter, " & !is.na(dat[,'", columnName('turbidity', location, metric, columnNames), "'])")
+            if(length(turbmaxfilter)) turbmaxfilter <- paste0(turbmaxfilter, " & !is.na(dat[,'", columnName('turbidity', location, metric, columnNames), "'])")
             if(length(datefilter)) datefilter <- paste0(datefilter, " & !is.na(dat[,'", columnName('date', location, metric, columnNames), "'])")
             
 	        if(length(enterocminfilter)) enterocminfilter <- paste0(" & !is.na(dat[,'", columnName('enteroc', location, metric, columnNames), "'])")
@@ -401,10 +475,10 @@ shinyServer(
 	        if(!is.na(nitrateMax)) nitrateMaxfilter <- paste0("dat[,'", columnName('nitrate', location, metric, columnNames), "'] <= ", nitrateMax)
 	        if(!is.na(phosphateMin)) phosphateMinfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] >= ", phosphateMin)
 	        if(!is.na(phosphateMax)) phosphateMaxfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] <= ", phosphateMax)
-	        if(!is.na(totalNMin)) totalNMinfilter <- paste0("dat[,'", columnName('totalN', location, metric, columnNames), "'] >= ", totalNMin)
-	        if(!is.na(totalNMax)) totalNMaxfilter <- paste0("dat[,'", columnName('totalN', location, metric, columnNames), "'] <= ", totalNMax)
-	        if(!is.na(totalPMin)) totalPMinfilter <- paste0("dat[,'", columnName('totalP', location, metric, columnNames), "'] >= ", totalPMin)
-	        if(!is.na(totalPMax)) totalPMaxfilter <- paste0("dat[,'", columnName('totalP', location, metric, columnNames), "'] <= ", totalPMax)
+	        if(!is.na(totalNMin)) totalNMinfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] >= ", totalNMin)
+	        if(!is.na(totalNMax)) totalNMaxfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] <= ", totalNMax)
+	        if(!is.na(totalPMin)) totalPMinfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] >= ", totalPMin)
+	        if(!is.na(totalPMax)) totalPMaxfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] <= ", totalPMax)
 	        
 	        
 	        # Remove missing values
@@ -416,10 +490,10 @@ shinyServer(
             if(length(nitrateMax)) nitrateMax <- paste0(nitrateMax, " & !is.na(dat[,'", columnName('nitrate', location, metric, columnNames), "'])")
             if(length(phosphateMin)) phosphateMin <- paste0(phosphateMin, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
             if(length(phosphateMax)) phosphateMax <- paste0(phosphateMax, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
-            if(length(totalNMin)) totalNMin <- paste0(totalNMin, " & !is.na(dat[,'", columnName('totalN', location, metric, columnNames), "'])")
-            if(length(totalNMax)) totalNMax <- paste0(totalNMax, " & !is.na(dat[,'", columnName('totalN', location, metric, columnNames), "'])")
-            if(length(totalPMin)) totalPMin <- paste0(totalPMin, " & !is.na(dat[,'", columnName('totalP', location, metric, columnNames), "'])")
-            if(length(totalPMax)) totalPMax <- paste0(totalPMax, " & !is.na(dat[,'", columnName('totalP', location, metric, columnNames), "'])")
+            if(length(totalNMin)) totalNMin <- paste0(totalNMin, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
+            if(length(totalNMax)) totalNMax <- paste0(totalNMax, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
+            if(length(totalPMin)) totalPMin <- paste0(totalPMin, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
+            if(length(totalPMax)) totalPMax <- paste0(totalPMax, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
 	        
 	        allfilters <- c(sitefilter, yearfilter, datefilter, ammoniumMinfilter, ammoniumMaxfilter, nitrateMinfilter, nitrateMaxfilter, phosphateMinfilter, phosphateMaxfilter, totalNMinfilter, totalNMaxfilter, totalPMinfilter, totalPMaxfilter)
 	        

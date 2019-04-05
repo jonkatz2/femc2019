@@ -1,4 +1,4 @@
-#getData("SawKill", limit=10)
+#getData("SawKill", "chemistry", limit=10, apikey=apikey)
 
 getData <- function(
     location = c("sawkill", "roejan"),
@@ -51,20 +51,24 @@ getData <- function(
     dat
 }
 
-#getMetadata("SawKill")
+#getMetadata("SawKill", "chemistry", apikey)
 
 getMetadata <- function(
-    dataset = c("sawkill", "roejan", "nutrients"),  
+    location = c("sawkill", "roejan"),
+    dataset = c("chemistry", "nutrients"),  
     apikey
 ) {
 
     # dataset key
-    # 2731 = saw kill
-    # 2732 = nutrients
-    # 2733 = roe jan
+    # 2731 = saw kill chem
+    # 2732 = saw kill nutrients
+    # 2733 = roe jan chem
+    location <- tolower(location)
+    location <- match.arg(location)
     dataset <- tolower(dataset)
     dataset <- match.arg(dataset)
-    datasetid <- switch(dataset, sawkill=2731, nutrients=2732, roejan=2733)
+    if(location == "sawkill") datasetid <- switch(dataset, chemistry=2731, nutrients=2732)
+    else if(location == "roejan") datasetid <- switch(dataset, chemistry=2733)
     
     body=list(datasetid=datasetid)
     h <- curl::new_handle()
@@ -144,11 +148,36 @@ locsToSHP <- function(locs) {
 #columnName('temp', 'SawKill', 'chemistry', columnNames)
 columnName <- function(selection, location, metric, lookup) {
     colval <- paste0(location, "_", metric)
-    lookup[lookup$selection==selection, colval]
+    lookup[lookup$selection==tolower(selection), tolower(colval)]
 }
 
+# Download all column names, make a lookuptable
+makeColNameTab <- function(apikey) {
+    dat <- sapply(c("sawkill", "roejan"), function(x) {
+        sapply(c("nutrients", "chemistry"), function(y) {
+            z <- tryCatch(getMetadata(x, y, apikey), error=function(e) NULL)
+            z
+        }, simplify=FALSE)
+    }, simplify=FALSE)
 
+    d2 <- do.call(c, dat) 
 
+    datanames <- sapply(d2, rownames)
+    filters <- c("date", "site", "year", "temperature", "turbidity", "ecoli", "conductivity", "coliform", "enterococc", "ammonium", "magnesium", "phosphorus", "calcium", "nitrate", "sodium", "chloride", "phosphate", "nitrogen")
+
+    nm <- sapply(filters, function(x) {
+        as.data.frame(sapply(datanames, function(y) {
+            z <- y[grep(x, y, ignore.case=TRUE)]
+            if(length(z)) z
+            else NA
+        }, simplify=FALSE))
+    }, simplify=FALSE)
+
+    nmtab <- do.call(rbind.data.frame, nm)
+    nmtab <- data.frame(selection=rownames(nmtab), nmtab)
+    colnames(nmtab) <- gsub("\\.", "_", colnames(nmtab))
+    nmtab
+}
 
 
 
