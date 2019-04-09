@@ -26,6 +26,17 @@ Shiny.addCustomMessageHandler("togglenutrientfilters",
 )
 
 
+//// set location based on URL
+//Shiny.addCustomMessageHandler("setlocation",
+//  function(message){
+//    var location = 'SawKill';
+//    var url = document.createElement('a');
+//    var urlstr = url.baseURI;
+//    var locsearch = urlstr.split('?location=');
+//    if(locsearch.length > 1) { location = locsearch[1] }
+//    Shiny.setInputValue('location', location, {priority: 'event'});
+//  }
+//)
 
 
 

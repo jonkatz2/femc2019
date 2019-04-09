@@ -179,6 +179,50 @@ makeColNameTab <- function(apikey) {
     nmtab
 }
 
-
+# Some wrappers to remove error -999 codes and compute statistics
+rmErrMean <- function(x) {
+    x <- x[x > -999]
+    round(mean(x, na.rm=TRUE), 3)
+}
+rmErrMin <- function(x) {
+    x <- x[x > -999]
+    min(x, na.rm=TRUE)
+}
+rmErrMax <- function(x) {
+    x <- x[x > -999]
+    max(x, na.rm=TRUE)
+}
+rmErrRange <- function(x) {
+    x <- x[x > -999]
+    range(x, na.rm=TRUE)
+}
+rmErrLength <- function(x) {
+    x <- x[x > -999]
+    x <- na.omit(x)
+    length(x)
+}
+rmErrMode <- function(x) {
+    x <- x[x > -999]
+    x <- na.omit(x)
+    x <- hist(x, 10, plot=FALSE)
+    bin <- which(x$counts == max(x$counts))
+    highct <- x$counts[bin]
+    brk <- x$breaks[c(bin, bin+1)]
+    if(length(bin)>1) {
+        highct <- sum(highct)
+        brk <- range(brk)
+    }
+    list(range=brk, n=highct)    
+}
+makeStatsDF <- function(x) {
+    fmean <- rmErrMean(x) 
+    fmin <- rmErrMin(x) 
+    fmax <- rmErrMax(x) 
+    fN <- rmErrLength(x) 
+    fmode <- rmErrMode(x) 
+    errs <- sum(!is.na(x) & x == -999)
+    missing = sum(is.na(x))
+    data.frame(Samples=fN, Mean=fmean, Min=fmin, Max=fmax, Mode=paste0(fmode$n, " samples between ", fmode$range[1], " and ", fmode$range[2]), Removed.999=errs, Removed.NA=missing) #Attribute=x, range=paste0(fmin, " - ", fmax), 
+}
 
 

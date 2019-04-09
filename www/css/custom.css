@@ -370,3 +370,15 @@ body {
 	 padding-left: 0px;
 }
 
+#statsmodalcontent {
+    overflow-x: scroll;
+}
+
+.watershedstats th {
+    padding-right: 1em;
+}
+
+
+
+
+

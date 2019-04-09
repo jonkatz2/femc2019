@@ -1,15 +1,20 @@
 
 dat <- subsetTable()
 dat <- dat$data
-location <- input$location
+
+location <- tolower(input$location)
 metric <- navigation$currentmetric
 if(length(dat)) {
     yax <- columnName(input$yaxis, location, metric, columnNames)
+    if(is.na(yax)) yax <- ""
     xax <- columnName(input$xaxis, location, metric, columnNames)
+    if(is.na(xax)) xax <- ""
     spl <- columnName(input$split, location, metric, columnNames)
     type <- input$graphtype
+    remove999 <- input$remove999
     if(all(c(yax, xax) != "")) {
         if(type != "barplot") {
+            if(remove999) dat <- dat[dat[,yax] > -998,]
             ylim <- range(dat[,yax], na.rm = TRUE)
             if(input$split == "year") {
                 dateinfo <- as.POSIXlt(dat[,columnName("date", location, metric, columnNames)])
