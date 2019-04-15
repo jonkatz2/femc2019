@@ -182,16 +182,20 @@ shinyServer(
         
         # Go to the site selected from the map
         observeEvent(input$gotosite, {
-            dat <- getSawKillChemData()
-            sites <- unique(dat[,columnName('site', "SawKill", "chemistry", columnNames)])
+            location <- input$location
             site <- input$gotosite
-            loc <- site %in% sites
-            if(loc) loc <- "SawKill"
-            else {
-                loc <- "RoeJan"
-                dat <- getRoeJanChemData()
-                sites <- unique(dat[,columnName('site', "RoeJan", "chemistry", columnNames)])
+            metric <- navigation$currentmetric
+            if(metric == "chemistry") {
+                if(location == "SawKill") dat <- getSawKillChemData()
+                else if(location == "RoeJan") dat <- getRoeJanChemData()
+            } else if(metric == "nutrients") {
+                if(location == "SawKill") dat <- getSawKillNutrientData()
+                else if(location == "RoeJan") dat <- getRoeJanNutrientData()
+            } else if(metric == "landuse") {
+                if(location == "SawKill") dat <- getSawKillLandUseData()
+                else if(location == "RoeJan") dat <- getRoeLandUseData()
             }
+            sites <- unique(dat[,columnName('site', location, "chemistry", columnNames)])
 #            updateRadioButtons(session, 'location', selected=loc)
             updateSelectizeInput(session, 'site', choices=setNames(nm=sites), selected=site)
         }, ignoreInit=TRUE)
@@ -258,7 +262,8 @@ shinyServer(
                     if(location == "SawKill") dat <- getSawKillNutrientData()
                     else if(location == "RoeJan") dat <- getRoeJanNutrientData()
                 } else if(metric == "landuse") {
-                    dat <- NULL
+                    if(location == "SawKill") dat <- getSawKillLandUseData()
+                    else if(location == "RoeJan") dat <- getRoeLandUseData()
                 }
                 if(length(dat)) {
                     sites <- unique(dat[,columnName('site', location, metric, columnNames)])
@@ -321,6 +326,14 @@ shinyServer(
 	    # get the saw kill land use table from FEMC
 	    getSawkillLandUseData <- reactive({
 	        dat <- read.csv("data/LandUseData_Cleaned.csv", stringsAsFactors=FALSE)
+#	        cat("land use\n")
+#            print(colnames(dat))
+            dat
+	    })
+	    
+	    # get the saw kill subbasin land use table from FEMC
+	    getSawkillLandUseDataBySubbasin <- reactive({
+	        dat <- read.csv("data/SawKillSubbasin_MasterMonitoring_Data_cleaned.csv", stringsAsFactors=FALSE)
 #	        cat("land use\n")
 #            print(colnames(dat))
             dat
@@ -471,7 +484,7 @@ shinyServer(
         
         
         # Filter the saw kill nutrient table
-	    filteredNutrients <- reactive({
+	    filteredSawKillNutrients <- reactive({
 	        dat <- getSawKillNutrientData()
 	        metric <- navigation$currentmetric
 	        location <- input$location
@@ -533,6 +546,72 @@ shinyServer(
                 eval(parse(text=stmt))
             }   
         })
+        
+        
+        # Filter the saw kill land use table
+	    filteredSawKillLandUse <- reactive({
+	        dat <- getSawKillLandUseData()
+	        dat
+#	        metric <- navigation$currentmetric
+#	        location <- input$location
+#	        
+#	        daterange <- input$filterdaterange
+#	        site <- input$site
+#	        year <- input$year
+#	        ammoniumMin <- input$ammoniumMin
+#	        ammoniumMax <- input$ammoniumMax
+#	        nitrateMin <- input$nitrateMin
+#	        nitrateMax <- input$nitrateMax
+#	        phosphateMin <- input$phosphateMin
+#	        phosphateMax <- input$phosphateMax
+#	        totalNMin <- input$totalNMin
+#	        totalNMax <- input$totalNMax
+#	        totalPMin <- input$totalPMin
+#	        totalPMax <- input$totalPMax
+#	        	        
+#	        sitefilter <- yearfilter <- ammoniumMinfilter <- ammoniumMaxfilter <- nitrateMinfilter <- nitrateMaxfilter <- phosphateMinfilter <- phosphateMaxfilter <- totalNMinfilter <- totalNMaxfilter <- totalPMinfilter <- totalPMaxfilter <- character()
+#	        
+#	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c(", paste(site, collapse=", "), ")")
+#	        
+#	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
+#	        
+#	        datefilter <- paste0("dat[,'", columnName('date', location, metric, columnNames), "'] >= as.Date('", daterange[1], "') & ", "dat[,'", columnName('date', location, metric, columnNames), "'] <= as.Date('", daterange[2], "')")
+#	        
+#	        if(!is.na(ammoniumMin)) ammoniumMinfilter <- paste0("dat[,'", columnName('ammonium', location, metric, columnNames), "'] >= ", ammoniumMin)
+#	        if(!is.na(ammoniumMax)) ammoniumMaxfilter <- paste0("dat[,'", columnName('ammonium', location, metric, columnNames), "'] <= ", ammoniumMax)
+#	        if(!is.na(nitrateMin)) nitrateMinfilter <- paste0("dat[,'", columnName('nitrate', location, metric, columnNames), "'] >= ", nitrateMin)
+#	        if(!is.na(nitrateMax)) nitrateMaxfilter <- paste0("dat[,'", columnName('nitrate', location, metric, columnNames), "'] <= ", nitrateMax)
+#	        if(!is.na(phosphateMin)) phosphateMinfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] >= ", phosphateMin)
+#	        if(!is.na(phosphateMax)) phosphateMaxfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] <= ", phosphateMax)
+#	        if(!is.na(totalNMin)) totalNMinfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] >= ", totalNMin)
+#	        if(!is.na(totalNMax)) totalNMaxfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] <= ", totalNMax)
+#	        if(!is.na(totalPMin)) totalPMinfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] >= ", totalPMin)
+#	        if(!is.na(totalPMax)) totalPMaxfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] <= ", totalPMax)
+#	        
+#	        
+#	        # Remove missing values
+#            if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'", columnName('site', location, metric, columnNames), "'])")
+#            
+#            if(length(ammoniumMinfilter)) ammoniumMinfilter <- paste0(ammoniumMinfilter, " & !is.na(dat[,'", columnName('ammonium', location, metric, columnNames), "'])")
+#            if(length(ammoniumMaxfilter)) ammoniumMaxfilter <- paste0(ammoniumMaxfilter, " & !is.na(dat[,'", columnName('ammonium', location, metric, columnNames), "'])")
+#            if(length(nitrateMin)) nitrateMin <- paste0(nitrateMin, " & !is.na(dat[,'", columnName('nitrate', location, metric, columnNames), "'])")
+#            if(length(nitrateMax)) nitrateMax <- paste0(nitrateMax, " & !is.na(dat[,'", columnName('nitrate', location, metric, columnNames), "'])")
+#            if(length(phosphateMin)) phosphateMin <- paste0(phosphateMin, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
+#            if(length(phosphateMax)) phosphateMax <- paste0(phosphateMax, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
+#            if(length(totalNMin)) totalNMin <- paste0(totalNMin, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
+#            if(length(totalNMax)) totalNMax <- paste0(totalNMax, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
+#            if(length(totalPMin)) totalPMin <- paste0(totalPMin, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
+#            if(length(totalPMax)) totalPMax <- paste0(totalPMax, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
+#	        
+#	        allfilters <- c(sitefilter, yearfilter, datefilter, ammoniumMinfilter, ammoniumMaxfilter, nitrateMinfilter, nitrateMaxfilter, phosphateMinfilter, phosphateMaxfilter, totalNMinfilter, totalNMaxfilter, totalPMinfilter, totalPMaxfilter)
+#	        
+#	        allfilters <- allfilters[unlist(lapply(allfilters, function(x) length(x) > 0))]
+#            if(length(allfilters)) {
+#                allfilters <- paste(allfilters, collapse=" & ")	 
+#                stmt <- paste0("dat[", allfilters, ",]")
+#                eval(parse(text=stmt))
+#            }   
+        })
 	    
 	    # Identify the table that is on screen
 	    subsetTable <- reactive({
@@ -542,10 +621,12 @@ shinyServer(
                 if(location == "SawKill") dat <- filteredSawKillChem()
                 else if(location == "RoeJan") dat <- filteredRoeJanChem()
             } else if(metric == "nutrients") {
-                dat <- filteredNutrients()
+                if(location == "SawKill") dat <- filteredSawKillNutrients()
+                else if(location == "RoeJan") dat <- filteredRoeJanNutrients()
             } else if(metric == "landuse") {
-                dat <- NULL
-            } else dat <- NULL
+                if(location == "SawKill") dat <- filteredSawKillLandUse()
+                else if(location == "RoeJan") dat <- filteredRoeLandUse()
+            }
             list(data=dat, location=location, metric=metric)
 	    })
 	    
@@ -690,7 +771,7 @@ shinyServer(
 	    output$downloadstats <- downloadHandler(
 	        filename=function() {
 	            dat <- statstable()
-	            paste0(dat$location, "_",  dat$metric, "_stats.png")
+	            paste0(dat$location, "_",  dat$metric, "_stats.csv")
 	        },
 	        content=function(file) {
 	            dat <- statstable()

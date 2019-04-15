@@ -5,6 +5,6 @@ account: jkatz
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 833586
-bundleId: 1989159
+bundleId: 1998580
 url: https://jkatz.shinyapps.io/bardwaterlab/
-when: 1554471204.76549
+when: 1554836398.86649

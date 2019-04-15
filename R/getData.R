@@ -201,6 +201,13 @@ rmErrLength <- function(x) {
     x <- na.omit(x)
     length(x)
 }
+rmErrGeom <- function(x) {
+    x <- x[x > -999]
+    x <- na.omit(x)
+    len <- length(x)
+    prd <- prod(x, na.rm=TRUE)
+    round(log(prd, base=len), 3)
+}
 rmErrMode <- function(x) {
     x <- x[x > -999]
     x <- na.omit(x)
@@ -215,6 +222,7 @@ rmErrMode <- function(x) {
     list(range=brk, n=highct)    
 }
 makeStatsDF <- function(x) {
+    gmean <- rmErrGeom(x)
     fmean <- rmErrMean(x) 
     fmin <- rmErrMin(x) 
     fmax <- rmErrMax(x) 
@@ -222,7 +230,7 @@ makeStatsDF <- function(x) {
     fmode <- rmErrMode(x) 
     errs <- sum(!is.na(x) & x == -999)
     missing = sum(is.na(x))
-    data.frame(Samples=fN, Mean=fmean, Min=fmin, Max=fmax, Mode=paste0(fmode$n, " samples between ", fmode$range[1], " and ", fmode$range[2]), Removed.999=errs, Removed.NA=missing) #Attribute=x, range=paste0(fmin, " - ", fmax), 
+    data.frame(Samples=fN, GeometricMean=gmean, Mean=fmean, Min=fmin, Max=fmax, Mode=paste0(fmode$n, " samples between ", fmode$range[1], " and ", fmode$range[2]), Removed.999=errs, Removed.NA=missing) #Attribute=x, range=paste0(fmin, " - ", fmax), 
 }
 
 
