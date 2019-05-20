@@ -7,7 +7,7 @@ metric <- navigation$currentmetric
 if(length(dat)) {
     yax <- columnName(input$yaxis, location, metric, columnNames)
     if(is.na(yax)) yax <- ""
-    xax <- columnName(input$xaxis, location, metric, columnNames)
+    xax <- columnName("date", location, metric, columnNames) #columnName(input$xaxis, location, metric, columnNames)
     if(is.na(xax)) xax <- ""
     spl <- columnName(input$split, location, metric, columnNames)
     type <- input$graphtype

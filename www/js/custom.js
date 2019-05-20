@@ -1,3 +1,7 @@
+$(document).ready(function() {
+  $('[data-toggle="tooltip"]').tooltip();
+});
+
 function showmap(event) {
     $("#primarybuttons").find(".redbutton").each(function() {
         $(this).removeClass("clicked")
@@ -6,6 +10,7 @@ function showmap(event) {
     $("#mapcontainer").removeClass("hidden");
     $("#tablecontainer").addClass(" hidden");
     $("#chartcontainer").addClass(" hidden");
+    Shiny.setInputValue("gotobasin", [], {priority: "event"});
 };
 
 function showchart(event) {
@@ -16,6 +21,7 @@ function showchart(event) {
     $("#mapcontainer").addClass(" hidden");
     $("#tablecontainer").addClass(" hidden");
     $("#chartcontainer").removeClass("hidden");
+    Shiny.setInputValue("gotobasin", [], {priority: "event"});
 };
 
 function showtable(event) {
@@ -84,9 +90,19 @@ function gotosite(site) {
     console.log(site);
     $("#tableview_open").click();
     showfilter("site");
-    showfilter("location");
+//    showfilter("location");
     Shiny.setInputValue("gotosite", site, {priority: "event"});
 };
+
+//Go to a basin selected from the map
+function gotobasin(basin) {
+    console.log(basin);
+    $("#tableview_open").click();
+    showfilter("subbasin");
+//    showfilter("location");
+    Shiny.setInputValue("gotobasin", basin, {priority: "event"});
+};
+
 
 //toggle caret only
 function togglecaret(event) {

@@ -13,12 +13,35 @@ function(req) {
         singleton(tags$head(
             tags$link(rel="stylesheet", type="text/css", href="css/custom.css"),
             tags$script(src="js/custom.js"),
-            tags$script(src="js/messageHandlers.js")
+            tags$script(src="js/messageHandlers.js"),
+            tags$style('
+                .line {
+                    stroke-width: 2;
+                    fill: none;
+                }'
+            )
         )),
         # Statistics modal
         bsModal(
             id='statsmodal',
-            title = span(style="float:left;", downloadButton("downloadstats")),
+            title = div(
+                span(style="float:left;", 
+                    downloadButton("downloadstats")
+                ),
+                span(style="float:right;line-height:2em;",
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="A measure of central tendency used by NYS DEC and the US EPA to assess water quality. The geometric mean involves taking the nth root of the product of the data values, where n is the number of data values.", `data-container`="body", `data-placement`="bottom", "Geometric Mean"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="The arithmetic mean. The sum of data values divided by the number of data values.", `data-container`="body", `data-placement`="bottom", "Mean"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="The lowest data point recorded.", `data-container`="body", `data-placement`="bottom", "Minimum"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="The highest data point recorded.", `data-container`="body", `data-placement`="bottom", "Maximum"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="Most often occurring data value.", `data-container`="body", `data-placement`="bottom", "Mode"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="The number of data values used to compute statistics.", `data-container`="body", `data-placement`="bottom", "Samples"),
+                    tags$br(),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="The number of data values before removing errors and NA values.", `data-container`="body", `data-placement`="bottom", "Data Rows"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="Number of error codes removed. Error codes typically indicate measured values below detectable limit or above quantifiable limit.", `data-container`="body", `data-placement`="bottom", "Errors Removed"),
+                    p(class="statistics-help", `data-trigger`="hover click", `data-toggle`="tooltip", title="Number of missing (NA) values removed. Missing values are typically due to adverse environmental or sampling conditions at the time of collection.", `data-container`="body", `data-placement`="bottom", "NA Removed")
+                ),
+                span(style="font-weight:bold;float:right;line-height:2em;padding: 5px 8px 0px 0px;font-size:0.75em;", "Definitions:")
+            ),
             trigger="test1",
             DT::dataTableOutput("statsmodalcontent"), 
             size='large'
@@ -90,8 +113,6 @@ function(req) {
                             p(class="font-bold", icon("caret-right"), "Location", onclick="togglefilter(event);"),
                             span(class="filter hidden", 
                                 radioButtons("location", NULL, choices=setNames(nm=location), width="100%")
-    #                            radioButtons("location", NULL, choices=c(`Saw Kill`="SawKill", `Roe Jan`="RoeJan"), width="100%")
-    ##                            selectizeInput("location", NULL, choices=c(`Saw Kill`="SawKill", `Roe Jan`="Roe Jan"), multiple=TRUE, options = list(plugins=list('remove_button')), width="100%")
                             )
                         ),
                         # Site
@@ -232,8 +253,14 @@ function(req) {
                                     numericInput("totalPMax", "Max", value=NA, min=-100, max=100, step=0.001)
                                 )
                             )
+                        ),
+                        # Sub-basin
+                        div(class="filtergroup landcover hidden",
+                            p(class="font-bold", icon("caret-right"), "Sub-basin", onclick="togglefilter(event);"),
+                            span(class="filter hidden", 
+                                selectizeInput("subbasin", NULL, choices=list(), multiple=TRUE, options = list(plugins=list('remove_button')), width="100%")
+                            )
                         )
-    #                    actionButton("applyfilter", "Apply", class="bluebutton")
                     )
                 ),
                 div(class="rightalign",
@@ -242,7 +269,6 @@ function(req) {
                         $("#statistics_open").click(function(event) { showstatistics(event) });'
                     ),
                     div(id="statisticsbox", class="float-right hidden",
-#                        dateRangeInput("statisticsdaterange", "Select Date Range:", start="1901-01-01", width="100%"),
                         checkboxGroupInput("tabularstatsattribute", "Select Attribute:", choices=c(Temperature="temperature", Conductivity="conductivity", Turbidity="turbidity")),
                         actionButton("applyfilter", "View Statistics", class="bluebutton", `data-toggle`="modal", `data-target`="#statsmodal")
                     )
@@ -252,19 +278,21 @@ function(req) {
         # Chart view
         div(id="chartcontainer", class="hidden", # HAS STYLING
             div(id="chartoptions",
-                span(class="select-row", selectInput("graphtype", "Graph Type", choices=c(`Line/points`="o", Line="l", Points="p"))),
-                span(class="select-row", selectInput("xaxis", "Data for X Axis", choices=c(Date="date"))), 
                 span(class="select-row", selectInput("yaxis", "Data for Y Axis", choices=list())),
                 span(class="select-row", selectInput("split", "Split By", choices=c(Site="site", Year="year"))),
-                span(class="select-row", style="padding-top:15px;", checkboxInput("remove999", "Remove code -999", value=TRUE))
+                span(class="select-row", style="padding-top:15px;", checkboxInput("remove999", "Remove error codes", value=TRUE))
             ),
-
-            plotOutput("chartcontent", height="500px"),
+            tags$script(
+                type="text/javascript",
+                src="http://cdn.jsdelivr.net/g/filesaver.js"
+            ),
+            uiOutput("variableD3"),
+##            This was the original PNG chart
+#            plotOutput("chartcontent", height="500px"),
             div(id="chartbuttons",
-                actionButton("chartinformation", "Chart Information", class="downloadbutton"),
-                downloadButton("downloadchart", "Download Chart", class="downloadbutton"),
-                actionButton("chart_statistics", "Statistics", class="downloadbutton")
-            )
+                actionButton("downloadd3chart", "Download Chart", class="downloadbutton clearboth")
+            ),
+            textOutput("thresholddefinition")
         )
     )
 }

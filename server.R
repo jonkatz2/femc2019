@@ -1,18 +1,23 @@
 options(stringsAsFactors=FALSE)
-
+# shinyapps.io requires us to install phantomjs for each session
 if(!length(suppressMessages(webshot:::find_phantom()))) webshot::install_phantomjs()
 
+# all external functions
 source("R/getData.R")
+# the apikey is in a separate file that can be listed in .gitignore
 source("apikey.R")
 
-#columnNames <- read.csv('data/columnNames.csv')
-
-columnNames <- makeColNameTab(apikey)
+# metadata is retrieved for each session, used to look up column names
+metadata <- downloadMetadata(apikey)
+columnNames <- makeColNameTab(metadata)
+## error codes are hardcoded in the rmErr functions, could be dynamically sourced
+#errorCodes <- makeErrTab(metadata)
+#print(errorCodes)
 
 
 shinyServer(
 	function(input,output,session) {
-	    	    
+	    # manage UI states	    
 	    navigation <- reactiveValues(
 	        currentview = "mapview",
 	        currentmap = "sites",
@@ -31,13 +36,14 @@ shinyServer(
 	    
 	    # The secondary buttons are created server-side
 	    observe({
-	        currentview <- navigation$currentview
-	        if(currentview %in% c("tableview", "chartview")) {
-	            metric <- navigation$currentmetric
-	            clicked <- c("redbutton", "redbutton", "redbutton")
-	            clicked[c("chemistry", "nutrients", "landuse") == metric] <- "redbutton clicked"
-	            output$secondarybuttons <- renderUI(div(id="metricbuttons",
-                    column(4, class="leftalign", actionButton("chemistry_open", "Chemistry Data", class=clicked[1])),
+	        clickedbasin <- input$gotobasin
+	        # the rendered UI depends on whether navigation is via tooltip or primary button
+            if(length(clickedbasin)) {
+                # User clicked a "View Data" button in a leaflet tooltip
+                isolate(navigation$currentmetric <- "landuse")
+                clicked <- c("redbutton", "redbutton", "redbutton clicked")
+                output$secondarybuttons <- renderUI(div(id="metricbuttons",
+                    column(4, class="leftalign", actionButton("chemistry_open", "Water Quality Data", class=clicked[1])),
                     column(4, class="text-center", actionButton("nutrients_open", "Nutrients Data", class=clicked[2])),
                     column(4, class="rightalign", actionButton("landcover_open", "Land Cover Data", class=clicked[3])),
                     tags$script('
@@ -46,104 +52,162 @@ shinyServer(
                         $("#landcover_open").click(function(event) { clickedmetric(event); });'
                     )
                 ))
-	        } else {
-	            map <- navigation$currentmap
-	            clicked <- c("redbutton", "redbutton")
-	            clicked[c("sites", "basins") == map] <- "redbutton clicked"
-	            output$secondarybuttons <- renderUI(div(id="mapbuttons",
-                    column(6, class="text-center", actionButton("sites_open", "Plots", class=clicked[1])),
-                    column(6, class="text-center", actionButton("basins_open", "Sub Basins", class=clicked[2])),
-                    tags$script('
-                        $("#sites_open").click(function(event) { clickedmap(event); });
-                        $("#basins_open").click(function(event) { clickedmap(event); });'
-                    )
-                ))
+            } else {
+	            currentview <- navigation$currentview
+	            if(currentview %in% c("tableview", "chartview")) {
+                    # User clicked the "Table View" or "Chart View" button
+	                metric <- navigation$currentmetric
+	                clicked <- c("redbutton", "redbutton", "redbutton")
+	                clicked[c("chemistry", "nutrients", "landuse") == metric] <- "redbutton clicked"
+	                if(input$location == "RoeJan") {
+	                    clicked[2:3] <- c(paste(clicked[2], "sawkillonly hidden"), paste(clicked[3], "sawkillonly hidden"))
+                    } else if(currentview == "chartview") {
+                        clicked[3] <- paste(clicked[3], "hidden")
+                    }
+	                output$secondarybuttons <- renderUI(div(id="metricbuttons",
+                        column(4, class="leftalign", actionButton("chemistry_open", "Water Quality Data", class=clicked[1])),
+                        column(4, class="text-center", actionButton("nutrients_open", "Nutrients Data", class=clicked[2])),
+                        column(4, class="rightalign", actionButton("landcover_open", "Land Cover Data", class=clicked[3])),
+                        tags$script('
+                            $("#chemistry_open").click(function(event) { clickedmetric(event); });
+                            $("#nutrients_open").click(function(event) { clickedmetric(event); });
+                            $("#landcover_open").click(function(event) { clickedmetric(event); });'
+                        )
+                    ))
+	            } else {
+	                # User clicked the "Study Sites" button
+	                output$secondarybuttons <- renderUI(div())
+#                    map <- navigation$currentmap
+#                    clicked <- c("redbutton", "redbutton")
+#                    clicked[c("sites", "basins") == map] <- "redbutton clicked"
+#                    if(input$location == "RoeJan") clicked[2] <- paste0(clicked[2], "sawkillonly hidden")
+#                    output$secondarybuttons <- renderUI(div(id="mapbuttons",
+#                        column(6, class="text-center", actionButton("sites_open", "Plots", class=clicked[1])),
+#                        column(6, class="text-center", actionButton("basins_open", "Sub Basins", class=clicked[2])),
+#                        tags$script('
+#                            $("#sites_open").click(function(event) { clickedmap(event); });
+#                            $("#basins_open").click(function(event) { clickedmap(event); });'
+#                        )
+#                    ))
+	            }
 	        }
 	    })
 	    
-	    # Change the buttons to table/chart options
-	    observeEvent(input$sites_open, navigation$currentmap <- "sites", ignoreInit=TRUE)
-	    observeEvent(input$basins_open, navigation$currentmap <- "basins", ignoreInit=TRUE)
+#	    # Change the buttons to table/chart options
+#	    observeEvent(input$sites_open, navigation$currentmap <- "sites", ignoreInit=TRUE)
+#	    observeEvent(input$basins_open, navigation$currentmap <- "basins", ignoreInit=TRUE)
 	    
 	    # get the saw kill locations
 	    getSawkillLocations <- reactive({
 	        dat <- getLocationData("SawKill", apikey=apikey)
-            dat <- locsToSHP(dat)
+            dat <- toPoints(dat, "SawKill")
+            content <- paste0("<b>", dat@data[,'Site_Name'], "</b><br/>", "Site: ", dat@data[,'Site_Numbe'], "&nbsp; &nbsp; &nbsp; (", dat@data[,'Latitude'], ", ", dat@data[,'Longitude'], ")<br/>", dat@data[,'Site_Descr'], '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotosite(\'', dat@data[,'Site_Numbe'], '\')" type="button">View Data</button></div>')
+            labels <- as.character(dat@data[,"Site_Numbe"])
+            coords <- coordinates(dat)
+            colnames(coords) <- c("Longitude", "Latitude")
+	        list(points=dat, content=content, labels=labels, coords=coords, zoom=12)
+	    })
+	    
+	    # get the roe jan locations
+	    getRoeJanLocations <- reactive({
+	        dat <- getLocationData("RoeJan", apikey=apikey)
+            dat <- toPoints(dat, "RoeJan")
+	        popup <- dat@data[,'PopupInfo']
+	        popup[is.na(popup)] <- ""
+	        
+	        content <- paste0("<b>", dat@data[,'Name'], "</b><br/>", "Site: ", dat@data[,'SiteName'], "&nbsp; &nbsp; &nbsp; (", dat@data[,'Latitude'], ", ", dat@data[,'Longitude'], ")<br/>", popup, '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotosite(\'', dat@data[,'SiteName'], '\')" type="button">View Data</button></div>')
+            labels <- as.character(dat@data[,"SiteName"])
+            coords <- coordinates(dat)
+            colnames(coords) <- c("Longitude", "Latitude")
+	        list(points=dat, content=content, labels=labels, coords=coords, zoom=11)
+	    })
+	    
+	    # get threshold data 
+	    getThresholdData <- reactive({
+	        getThresholds(apikey)
+	    })
+	        
+	    # Identify the location map to show on screen
+	    currentLocationSites <- reactive({
+	        location <- input$location
+            if(location == "SawKill") dat <- getSawkillLocations()
+            else if(location == "RoeJan") dat <- getRoeJanLocations()
             dat
 	    })
 	    
 	    # Download site location data
 	    output$downloadsitedata <- downloadHandler(
 	        file=function() {
-	            "Sawkill_RoeJan_sitedata.csv"
+	            paste0(input$location, "_sitedata.csv")
 	        },
 	        content=function(file) {
-	            dat_s <- getSawkillLocations()
+	            dat_s <- currentLocationSites()
+	            dat_s <- dat_s$points
 	            write.csv(dat_s@data, file, row.names=FALSE)
 	        },
 	        contentType="text/csv"
 	    )
 	    
+	    # read the saw kill basins
+	    getSawkillBasins <- reactive({
+	        dat <- getLocationData("SawKill", "basins", apikey=apikey)
+	        dat <- toPolygons(dat)
+	        dat
+	    })
+	    	    
 	    # Make the map of sawkill points
 	    sitesmap <- reactive({
-	        dat <- getSawkillLocations()
-	        crds <- unname(rowMeans(bbox(dat)))
-            
-            ## Spelling error: Longtiude!!
-	        content <- paste0("<b>", dat@data[,'Site_Name'], "</b><br/>", "Site: ", dat@data[,'Site_Numbe'], "&nbsp; &nbsp; &nbsp; (", dat@data[,'Latitude'], ", ", dat@data[,'Longtiude'], ")<br/>", dat@data[,'Site_Descr'], '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotosite(\'', dat@data[,'Site_Numbe'], '\')" type="button">View Data</button></div>')
-            labels <- dat@data[,"Site_Numbe"]
+	        sites <- currentLocationSites()
+	        sitescontent <- sites$content
+	        siteslabels <- sites$labels
+	        sitescoords <- sites$coords
+	        siteszoom <- sites$zoom
+	        sites <- sites$points
+	        crds <- unname(rowMeans(bbox(sites)))
             direction <- rep(c("top", "left", "bottom", "right"), ceiling(length(labels)/4))
-	        m <- leaflet(dat)
+	        m <- leaflet(sites)
             m <- addTiles(m)
-            for(i in 1:nrow(dat))
+            for(i in 1:nrow(sites))
             m <- addCircleMarkers(m, 
-                lng = as.numeric(dat@data[i, "Longtiude"]), 
-                lat = as.numeric(dat@data[i,"Latitude"]), 
-                popup = content[i], 
-                label = labels[i], 
+                lng = as.numeric(sitescoords[i, "Longitude"]), 
+                lat = as.numeric(sitescoords[i,"Latitude"]), 
+                popup = sitescontent[i], 
+                label = siteslabels[i], 
                 labelOptions = labelOptions(noHide = TRUE, className="leaflet-label-small", direction=direction[i]), 
                 options=pathOptions(className="leaflet-marker-hover")
             )
-            m <- setView(m, lat = crds[2], lng = crds[1], zoom = 12)
+            m <- setView(m, lat = crds[2], lng = crds[1], zoom = siteszoom)
             m
-	    })
-	    
-	    # read the saw kill basins
-	    getSawkillBasins <- reactive({
-	        dat <-readOGR("data/Subbasins_revised", "Subbasins_revised")
-	        dat <- spTransform(dat, CRS("+init=epsg:4326"))
-	        dat
 	    })
 	    
 	    # Make the map of sawkill subbasins
 	    basinsmap <- reactive({
-	        dat <-getSawkillBasins()
-	        crds <- unname(rowMeans(bbox(dat)))
+	        basins <- getSawkillBasins()
+	        crds <- unname(rowMeans(bbox(basins)))
             colorpal1 <- brewer.pal(7, "RdYlBu")
             colorpal2 <- brewer.pal(7, "PRGn")
             colorpal3 <- rev(brewer.pal(6, "BrBG"))
             colorpal <- c(colorpal1, colorpal2, colorpal3)
-	        landuse <- getSawkillLandUseData()
+	        landuse <- getSawKillLandUseData()
             lupct <- colnames(landuse)
             lupct <- lupct[grepl("pct$", lupct, ignore.case=TRUE)]
-	        ludat <- unlist(sapply(dat@data[,'Letter_ID'], function(x) {
+	        ludat <- unlist(sapply(basins@data[,'Letter_ID'], function(x) {
 	            letterid <- paste0("<tr><th>Basin Letter ID</th><th>", x, "</th></tr>")
-	            watershed <- paste0("<tr><td>Watershed</td><td>", dat@data[dat@data[,'Letter_ID'] == x, 'WSHED3'], "</td></tr>")
+	            watershed <- paste0("<tr><td>Watershed</td><td>", basins@data[basins@data[,'Letter_ID'] == x, 'WSHED3'], "</td></tr>")
 	            acres <- paste0("<tr><td>Acres</td><td>", landuse[landuse['sub_basin'] == x, 'Acres'], "</td></tr>")
 	            otherstat <- unlist(lapply(lupct, function(y) {
 	                paste0("<tr><td>", strsplit(y, "_")[[1]][1], "</td><td>", paste0(landuse[landuse['sub_basin'] == x, y], '%'), "</td></tr>")
 	            }))
 	            paste0("<table class='watershedstats'>", letterid, watershed, acres, paste0(otherstat, collapse=""), "</table>", collapse="")
 	        }))
-	        content <- paste0(ludat, '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotobasin(\'', dat@data[,'Letter_ID'], '\')" type="button">View Data</button></div>')
-#	        content <- paste0("<b>Basin Letter ID: ", dat@data[,'Letter_ID'], "</b><br/>", "Watershed: ", dat@data[,'WSHED3'], "<br/>Acres: ", dat@data[,'Acres'], '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotobasin(\'', dat@data[,'Letter_ID'], '\')" type="button">View Data</button></div>')
-            labels <- dat@data[,"Letter_ID"]
-#            direction <- rep(c("top", "left", "bottom", "right"), ceiling(length(labels)/4))
-	        m <- leaflet(dat)
+	        basinscontent <- paste0(ludat, '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotobasin(\'', basins@data[,'Letter_ID'], '\')" type="button">View Data</button></div>')
+            basinslabels <- basins@data[,"Letter_ID"]
+
+	        m <- leaflet(basins)
             m <- addTiles(m)
-            for(i in 1:nrow(dat))
+            for(i in 1:nrow(basins))
             m <- addPolygons(m,
-                data = dat[i, ],
+                data = basins[i, ],
                 color = "#444444", 
                 weight = 1, 
                 smoothFactor = 0.5,
@@ -155,12 +219,12 @@ shinyServer(
                     weight = 2,
                     bringToFront = TRUE
                 ),
-                popup = content[i],
-                label = labels[i]
+                popup = basinscontent[i],
+                label = basinslabels[i]
             )
             m <- addLabelOnlyMarkers(m, 
-                lng=coordinates(dat)[,1],
-                lat=coordinates(dat)[,2],
+                lng=coordinates(basins)[,1],
+                lat=coordinates(basins)[,2],
                 labelOptions = labelOptions(
                     noHide = TRUE, 
                     className="leaflet-label-hidden",
@@ -172,11 +236,92 @@ shinyServer(
             m
 	    })
 
+        # one map with both basins and study sites
+	    onemap <- reactive({
+	        # Sites
+	        sites <- currentLocationSites()
+	        sitescontent <- sites$content
+	        siteslabels <- sites$labels
+	        sitescoords <- sites$coords
+	        siteszoom <- sites$zoom
+	        sites <- sites$points
+	        crds <- unname(rowMeans(bbox(sites)))
+            direction <- rep(c("top", "left", "bottom", "right"), ceiling(length(labels)/4))
+	        # Basins
+	        basins <- getSawkillBasins()
+	        crds <- unname(rowMeans(bbox(basins)))
+            colorpal1 <- brewer.pal(7, "RdYlBu")
+            colorpal2 <- brewer.pal(7, "PRGn")
+            colorpal3 <- rev(brewer.pal(6, "BrBG"))
+            colorpal <- c(colorpal1, colorpal2, colorpal3)
+	        landuse <- getSawKillLandUseData()
+            lupct <- colnames(landuse)
+            lupct <- lupct[grepl("pct$", lupct, ignore.case=TRUE)]
+	        ludat <- unlist(sapply(basins@data[,'Letter_ID'], function(x) {
+	            letterid <- paste0("<tr><th>Basin Letter ID</th><th>", x, "</th></tr>")
+	            watershed <- paste0("<tr><td>Watershed</td><td>", basins@data[basins@data[,'Letter_ID'] == x, 'WSHED3'], "</td></tr>")
+	            acres <- paste0("<tr><td>Acres</td><td>", landuse[landuse['sub_basin'] == x, 'Acres'], "</td></tr>")
+	            otherstat <- unlist(lapply(lupct, function(y) {
+	                paste0("<tr><td>", strsplit(y, "_")[[1]][1], "</td><td>", paste0(landuse[landuse['sub_basin'] == x, y], '%'), "</td></tr>")
+	            }))
+	            paste0("<table class='watershedstats'>", letterid, watershed, acres, paste0(otherstat, collapse=""), "</table>", collapse="")
+	        }))
+	        basinscontent <- paste0(ludat, '<div style=text-align:center;><button class="btn btn-default action-button redbutton narrowbutton" onclick="gotobasin(\'', basins@data[,'Letter_ID'], '\')" type="button">View Data</button></div>')
+            basinslabels <- basins@data[,"Letter_ID"]
+            # Make map
+	        m <- leaflet(basins)
+            m <- addTiles(m)
+            for(i in 1:nrow(basins))
+            m <- addPolygons(m,
+                data = basins[i, ],
+                color = "#444444", 
+                weight = 1, 
+                smoothFactor = 0.5,
+                opacity = 1, 
+                fillOpacity = 0.5,
+                fillColor = colorpal[i],
+                highlightOptions = highlightOptions(
+                    color = "white", 
+                    weight = 2
+                ),
+                popup = basinscontent[i],
+                label = basinslabels[i],
+                group = "Basins"
+            )
+            m <- addLabelOnlyMarkers(m, 
+                lng=coordinates(basins)[,1],
+                lat=coordinates(basins)[,2],
+                labelOptions = labelOptions(
+                    noHide = TRUE, 
+                    className="leaflet-label-hidden",
+                    direction="top"
+                ),
+                label = basinslabels
+            )
+            for(i in 1:nrow(sites))
+            m <- addCircleMarkers(m, 
+                lng = as.numeric(sitescoords[i, "Longitude"]), 
+                lat = as.numeric(sitescoords[i,"Latitude"]), 
+                popup = sitescontent[i], 
+                label = siteslabels[i], 
+                labelOptions = labelOptions(noHide = TRUE, className="leaflet-label-small", direction=direction[i]), 
+                options = pathOptions(className="leaflet-marker-hover"),
+                group = "Study Sites"
+            )
+            m <- setView(m, lat = crds[2], lng = crds[1], zoom = 12)
+            m <- addLayersControl(m, 
+                overlayGroups = c("Basins", "Study Sites"),
+                options = layersControlOptions(collapsed = FALSE)
+            )
+            m
+	    })
+
 	    # display the map
 	    output$mapcontent <- renderLeaflet({
-	        currentmap <- navigation$currentmap
-	        if(currentmap == "sites") map <- sitesmap()
-	        else map <- basinsmap()
+#	        currentmap <- navigation$currentmap
+#	        if(currentmap == "sites") map <- sitesmap()
+#	        else map <- basinsmap()
+            map <- onemap()
 	        map
         })	    
         
@@ -192,16 +337,29 @@ shinyServer(
                 if(location == "SawKill") dat <- getSawKillNutrientData()
                 else if(location == "RoeJan") dat <- getRoeJanNutrientData()
             } else if(metric == "landuse") {
-                if(location == "SawKill") dat <- getSawKillLandUseData()
+                if(location == "SawKill") dat <- getSawKillLandUseDataBySubbasin()
                 else if(location == "RoeJan") dat <- getRoeLandUseData()
             }
             sites <- unique(dat[,columnName('site', location, "chemistry", columnNames)])
-#            updateRadioButtons(session, 'location', selected=loc)
             updateSelectizeInput(session, 'site', choices=setNames(nm=sites), selected=site)
         }, ignoreInit=TRUE)
         
         
+        # Go to the basin selected from the map
+        observeEvent(input$gotobasin, {
+            basin <- input$gotobasin
+            metric <- navigation$currentmetric
+            dat <- getSawKillLandUseDataBySubbasin()
+            basins <- unique(dat[,"sub_basin"])
+            updateSelectizeInput(session, 'subbasin', choices=setNames(nm=basins), selected=basin)
+        }, ignoreInit=TRUE)
         
+        # When moving between table view (landuse metric) and chart view, switch off landuse
+        observe({
+            currentview <- navigation$currentview
+            currentmetric <- navigation$currentmetric
+            if(currentview != "tableview" && currentmetric == "landuse") navigation$currentmetric <- "chemistry"
+        })
         
         # Update the filters with sawkill-only filters
         observeEvent(input$location, {
@@ -219,9 +377,10 @@ shinyServer(
 	            "Sawkill_RoeJan_sites.png"
 	        },
 	        content=function(file) {
-	            currentmap <- navigation$currentmap
-	            if(currentmap == "sites") map <- sitesmap()
-	            else map <- basinsmap()
+#	            currentmap <- navigation$currentmap
+#	            if(currentmap == "sites") map <- sitesmap()
+#	            else map <- basinsmap()
+                map <- onemap()
 	            map
                 mapview::mapshot(map, file = file)
 	        },
@@ -231,20 +390,29 @@ shinyServer(
 	    # Download site map as zipped shapefile
 	    output$downloadmapshapefile <- downloadHandler(
 	        file=function() {
-	            paste0(input$location, "_", navigation$currentmap, ".zip")
+	            paste0(input$location, "_studysites.zip")
 	        },
 	        content=function(file) {
 	            location <- input$location
-	            currentmap <- navigation$currentmap
-                if(location == "SawKill") {
-                    if(currentmap == "sites") map <- getSawkillLocations()
-                    else map <- getSawkillBasins()
+	            if(location == "SawKill") {
+                    sitesmap <- getSawkillLocations()
+                    basinsmap <- getSawkillBasins()
+                    rgdal::writeOGR(sitesmap$points, paste0(location, "_studysites"), paste0(location, "_studysites"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
+                    rgdal::writeOGR(basinsmap, paste0(location, "_studysites"), paste0(location, "_basins"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=FALSE)
                 } else {
-                    if(currentmap == "sites") map <- getRoejanLocations()
-                    else map <- getRoejanBasins()
+                    map <- getRoejanLocations()
+                    rgdal::writeOGR(map, paste0(location, "_studysites"), paste0(location, "_studysites"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
                 }
-	            rgdal::writeOGR(map, paste0(location, currentmap), paste0(location, currentmap), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
-	            zip(file, paste0(location, currentmap))
+#	            currentmap <- navigation$currentmap
+#                if(location == "SawKill") {
+#                    if(currentmap == "sites") map <- getSawkillLocations()
+#                    else map <- getSawkillBasins()
+#                } else {
+#                    if(currentmap == "sites") map <- getRoejanLocations()
+#                    else map <- getRoejanBasins()
+#                }
+#	            rgdal::writeOGR(map, paste0(location, currentmap), paste0(location, currentmap), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
+	            zip(file, paste0(location, "_studysites"))
 	        },
 	        contentType="application/zip"
 	    )
@@ -262,33 +430,34 @@ shinyServer(
                     if(location == "SawKill") dat <- getSawKillNutrientData()
                     else if(location == "RoeJan") dat <- getRoeJanNutrientData()
                 } else if(metric == "landuse") {
-                    if(location == "SawKill") dat <- getSawKillLandUseData()
+                    if(location == "SawKill") dat <- getSawKillLandUseDataBySubbasin()
                     else if(location == "RoeJan") dat <- getRoeLandUseData()
                 }
                 if(length(dat)) {
                     sites <- unique(dat[,columnName('site', location, metric, columnNames)])
-                    updateSelectInput(session, "site", choices=setNames(nm=sites), selected=input$site)
+                    updateSelectInput(session, "site", choices=setNames(nm=sites), selected=isolate(input$site))
                     year <- unique(dat[,columnName('year', location, metric, columnNames)])
-                    updateSelectInput(session, "year", choices=setNames(nm=year), selected=input$year)
+                    updateSelectInput(session, "year", choices=setNames(nm=year), selected=isolate(input$year))
                 }
             }
-	    }, priority=1000) # execute before the from-map site 
+	    }, priority=1000) # execute before the from-map site
 	    
-#	    # Nutrients only apply to saw kill
-#	    observe({
-#	        metric <- navigation$currentmetric
-#	        input$location
-#	        if(metric == "nutrients") updateRadioButtons(session, "location", selected="SawKill")
-#	    })
 	    
+	    # Update the sub-basin selector
+	    observe({
+	        dat <- getSawKillLandUseDataBySubbasin()
+            if(is.data.frame(dat)) {
+                subbasins <- unique(dat$sub_basin)
+                updateSelectizeInput(session, "subbasin", choices=setNames(nm=subbasins), selected=isolate(input$subbasin))
+            }
+        }, priority=1000) 
+	    	    
 	    # get the saw kill table from FEMC
 	    getSawKillChemData <- reactive({
 	        dat <- getData("sawkill", "chemistry", apikey=apikey)
 	        metric <- navigation$currentmetric
 	        datecol <- columnName('date', input$location, metric, columnNames)
 	        dat[,datecol] <- as.Date(dat[,datecol])
-#	        cat("SawKill\n")
-#            print(colnames(dat))
             dat
 	    })
 	    
@@ -298,8 +467,6 @@ shinyServer(
 	        metric <- navigation$currentmetric
 	        datecol <- columnName('date', input$location, metric, columnNames)
 	        dat[,datecol] <- as.Date(dat[,datecol])
-#	        cat("roejan\n")
-#            print(colnames(dat))
 	        dat
 	    })
 	    
@@ -309,56 +476,34 @@ shinyServer(
 	        metric <- navigation$currentmetric
 	        datecol <- columnName('date', input$location, metric, columnNames)
 	        dat[,datecol] <- as.Date(dat[,datecol])
-#	        cat("nutrients\n")
-#            print(colnames(dat))
             dat
 	    })
 	    
+	    # This is never called?
 	    # get the roe jan nutrient table from FEMC
 	    getRoeJanNutrientData <- reactive({
-#	        dat <- getData("roejan", "nutrients", apikey=apikey)
-##	        cat("nutrients\n")
-##            print(colnames(dat))
-#            dat
             NULL
 	    })
 
-	    # get the saw kill land use table from FEMC
-	    getSawkillLandUseData <- reactive({
+	    # get the saw kill land use table 
+	    ## LOCAL FILE ##
+	    getSawKillLandUseData <- reactive({
 	        dat <- read.csv("data/LandUseData_Cleaned.csv", stringsAsFactors=FALSE)
-#	        cat("land use\n")
-#            print(colnames(dat))
             dat
 	    })
 	    
 	    # get the saw kill subbasin land use table from FEMC
-	    getSawkillLandUseDataBySubbasin <- reactive({
+	    ## LOCAL FILE ##
+	    getSawKillLandUseDataBySubbasin <- reactive({
 	        dat <- read.csv("data/SawKillSubbasin_MasterMonitoring_Data_cleaned.csv", stringsAsFactors=FALSE)
-#	        cat("land use\n")
-#            print(colnames(dat))
+	        dat$date <- as.Date(dat$date, format="%m/%d/%Y")
             dat
 	    })
-	    
-#	    # get the saw kill land use table from FEMC
-#	    getSawkillLandUseData <- reactive({
-#	        dat <- getData("sawkill", "landuse", apikey=apikey)
-##	        cat("land use\n")
-##            print(colnames(dat))
-#            dat
-#	    })
-#	    
-#	    # get the saw kill land use table from FEMC
-#	    getRoeJanLandUseData <- reactive({
-#	        dat <- getData("roejan", "landuse", apikey=apikey)
-##	        cat("land use\n")
-##            print(colnames(dat))
-#            dat
-#	    })
 	    
 	    # Filter the saw kill chemistry table
 	    filteredSawKillChem <- reactive({
 	        dat <- getSawKillChemData()
-	        metric <- navigation$currentmetric
+	        metric <- navigation$currentmetric 
 	        location <- input$location
 	        daterange <- input$filterdaterange
 	        site <- input$site
@@ -375,10 +520,10 @@ shinyServer(
 	        enterococciMax <- input$enterococciMax
 	        totcoliformMin <- input$totcoliformMin
 	        totcoliformMax <- input$totcoliformMax
-	        
+	        # Set empty filter placeholders
 	        sitefilter <- yearfilter <- tempminfilter <- tempmaxfilter <- condminfilter <- condmaxfilter <- turbminfilter <- turbmaxfilter <- ecoliminfilter <- ecolimaxfilter <- enterocminfilter <- enterocmaxfilter <- totcoliformminfilter <- totcoliformmaxfilter <- character()
-	        
-	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c(", paste(site, collapse=", "), ")")
+	        # update placeholders with user selections
+	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c('", paste(site, collapse="', '"), "')")
 	        
 	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
 	        datefilter <- paste0("dat[,'", columnName('date', location, metric, columnNames), "'] >= as.Date('", daterange[1], "') & ", "dat[,'", columnName('date', location, metric, columnNames), "'] <= as.Date('", daterange[2], "')")
@@ -397,7 +542,7 @@ shinyServer(
 	        if(!is.na(totcoliformMin)) totcoliformminfilter <- paste0("dat[,'", columnName('coliform', location, metric, columnNames), "'] >= ", totcoliformMin)
 	        if(!is.na(totcoliformMax)) totcoliformmaxfilter <- paste0("dat[,'", columnName('coliform', location, metric, columnNames), "'] <= ", totcoliformMax)
 	        
-            # Remove missing values
+            # Remove missing (NA) values
             if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'", columnName('site', location, metric, columnNames), "'])")
             if(length(tempminfilter)) tempminfilter <- paste0(tempminfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
             if(length(tempmaxfilter)) tempmaxfilter <- paste0(tempmaxfilter, " & !is.na(dat[,'", columnName('temperature', location, metric, columnNames), "'])")
@@ -413,7 +558,7 @@ shinyServer(
 	        if(length(enterocmaxfilter)) enterocmaxfilter <- paste0(" & !is.na(dat[,'", columnName('enteroc', location, metric, columnNames), "'])")
 	        if(length(totcoliformminfilter)) totcoliformminfilter <- paste0(" & !is.na(dat[,'", columnName('coliform', location, metric, columnNames), "'])")
 	        if(length(totcoliformmaxfilter)) totcoliformmaxfilter <- paste0(" & !is.na(dat[,'", columnName('coliform', location, metric, columnNames), "'])")
-
+            # Combine all filter statements & evaluate
 	        allfilters <- c(sitefilter, yearfilter, datefilter, tempminfilter, tempmaxfilter, condminfilter, condmaxfilter, turbminfilter, turbmaxfilter, ecoliminfilter, ecolimaxfilter, enterocminfilter, enterocmaxfilter, totcoliformminfilter, totcoliformmaxfilter, ecoliminfilter, ecolimaxfilter, enterocminfilter, enterocmaxfilter, totcoliformminfilter, totcoliformmaxfilter)
 	        
 	        allfilters <- allfilters[unlist(lapply(allfilters, function(x) length(x) > 0))]
@@ -428,6 +573,7 @@ shinyServer(
 	    filteredRoeJanChem <- reactive({
 	        dat <- getRoeJanChemData()
 	        metric <- navigation$currentmetric
+	        # Gather user selections from UI
 	        location <- input$location	        
 	        
 	        daterange <- input$filterdaterange
@@ -441,9 +587,10 @@ shinyServer(
 	        turbidityMax <- input$turbidityMax
 	        enterococciMin <- input$enterococciMin
 	        enterococciMax <- input$enterococciMax
-	        
+	        # Set empty filter placeholders
 	        sitefilter <- yearfilter <- tempminfilter <- tempmaxfilter <- condminfilter <- condmaxfilter <- turbminfilter <- turbmaxfilter <- enterocminfilter <- enterocmaxfilter <- character()
 	        
+	        # update placeholders with user selections
 	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c('", paste0(site, collapse="', '"), "')")
 	        
 	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
@@ -488,7 +635,7 @@ shinyServer(
 	        dat <- getSawKillNutrientData()
 	        metric <- navigation$currentmetric
 	        location <- input$location
-	        
+	        # Gather user selections from UI
 	        daterange <- input$filterdaterange
 	        site <- input$site
 	        year <- input$year
@@ -502,10 +649,10 @@ shinyServer(
 	        totalNMax <- input$totalNMax
 	        totalPMin <- input$totalPMin
 	        totalPMax <- input$totalPMax
-	        	        
+	        # Set empty filter placeholders
 	        sitefilter <- yearfilter <- ammoniumMinfilter <- ammoniumMaxfilter <- nitrateMinfilter <- nitrateMaxfilter <- phosphateMinfilter <- phosphateMaxfilter <- totalNMinfilter <- totalNMaxfilter <- totalPMinfilter <- totalPMaxfilter <- character()
-	        
-	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c(", paste(site, collapse=", "), ")")
+	        # update placeholders with user selections
+	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c('", paste(site, collapse="', '"), "')")
 	        
 	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
 	        
@@ -550,67 +697,38 @@ shinyServer(
         
         # Filter the saw kill land use table
 	    filteredSawKillLandUse <- reactive({
-	        dat <- getSawKillLandUseData()
-	        dat
-#	        metric <- navigation$currentmetric
-#	        location <- input$location
-#	        
-#	        daterange <- input$filterdaterange
-#	        site <- input$site
-#	        year <- input$year
-#	        ammoniumMin <- input$ammoniumMin
-#	        ammoniumMax <- input$ammoniumMax
-#	        nitrateMin <- input$nitrateMin
-#	        nitrateMax <- input$nitrateMax
-#	        phosphateMin <- input$phosphateMin
-#	        phosphateMax <- input$phosphateMax
-#	        totalNMin <- input$totalNMin
-#	        totalNMax <- input$totalNMax
-#	        totalPMin <- input$totalPMin
-#	        totalPMax <- input$totalPMax
-#	        	        
-#	        sitefilter <- yearfilter <- ammoniumMinfilter <- ammoniumMaxfilter <- nitrateMinfilter <- nitrateMaxfilter <- phosphateMinfilter <- phosphateMaxfilter <- totalNMinfilter <- totalNMaxfilter <- totalPMinfilter <- totalPMaxfilter <- character()
-#	        
-#	        if(length(site)) sitefilter <- paste0("dat[,'", columnName('site', location, metric, columnNames), "'] %in% c(", paste(site, collapse=", "), ")")
-#	        
-#	        if(length(year)) yearfilter <- paste0("dat[,'", columnName('year', location, metric, columnNames), "'] %in% c(", paste(year, collapse=", "), ")")
-#	        
-#	        datefilter <- paste0("dat[,'", columnName('date', location, metric, columnNames), "'] >= as.Date('", daterange[1], "') & ", "dat[,'", columnName('date', location, metric, columnNames), "'] <= as.Date('", daterange[2], "')")
-#	        
-#	        if(!is.na(ammoniumMin)) ammoniumMinfilter <- paste0("dat[,'", columnName('ammonium', location, metric, columnNames), "'] >= ", ammoniumMin)
-#	        if(!is.na(ammoniumMax)) ammoniumMaxfilter <- paste0("dat[,'", columnName('ammonium', location, metric, columnNames), "'] <= ", ammoniumMax)
-#	        if(!is.na(nitrateMin)) nitrateMinfilter <- paste0("dat[,'", columnName('nitrate', location, metric, columnNames), "'] >= ", nitrateMin)
-#	        if(!is.na(nitrateMax)) nitrateMaxfilter <- paste0("dat[,'", columnName('nitrate', location, metric, columnNames), "'] <= ", nitrateMax)
-#	        if(!is.na(phosphateMin)) phosphateMinfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] >= ", phosphateMin)
-#	        if(!is.na(phosphateMax)) phosphateMaxfilter <- paste0("dat[,'", columnName('phosphate', location, metric, columnNames), "'] <= ", phosphateMax)
-#	        if(!is.na(totalNMin)) totalNMinfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] >= ", totalNMin)
-#	        if(!is.na(totalNMax)) totalNMaxfilter <- paste0("dat[,'", columnName('nitrogen', location, metric, columnNames), "'] <= ", totalNMax)
-#	        if(!is.na(totalPMin)) totalPMinfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] >= ", totalPMin)
-#	        if(!is.na(totalPMax)) totalPMaxfilter <- paste0("dat[,'", columnName('phosphorus', location, metric, columnNames), "'] <= ", totalPMax)
-#	        
-#	        
-#	        # Remove missing values
-#            if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'", columnName('site', location, metric, columnNames), "'])")
-#            
-#            if(length(ammoniumMinfilter)) ammoniumMinfilter <- paste0(ammoniumMinfilter, " & !is.na(dat[,'", columnName('ammonium', location, metric, columnNames), "'])")
-#            if(length(ammoniumMaxfilter)) ammoniumMaxfilter <- paste0(ammoniumMaxfilter, " & !is.na(dat[,'", columnName('ammonium', location, metric, columnNames), "'])")
-#            if(length(nitrateMin)) nitrateMin <- paste0(nitrateMin, " & !is.na(dat[,'", columnName('nitrate', location, metric, columnNames), "'])")
-#            if(length(nitrateMax)) nitrateMax <- paste0(nitrateMax, " & !is.na(dat[,'", columnName('nitrate', location, metric, columnNames), "'])")
-#            if(length(phosphateMin)) phosphateMin <- paste0(phosphateMin, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
-#            if(length(phosphateMax)) phosphateMax <- paste0(phosphateMax, " & !is.na(dat[,'", columnName('phosphate', location, metric, columnNames), "'])")
-#            if(length(totalNMin)) totalNMin <- paste0(totalNMin, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
-#            if(length(totalNMax)) totalNMax <- paste0(totalNMax, " & !is.na(dat[,'", columnName('nitrogen', location, metric, columnNames), "'])")
-#            if(length(totalPMin)) totalPMin <- paste0(totalPMin, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
-#            if(length(totalPMax)) totalPMax <- paste0(totalPMax, " & !is.na(dat[,'", columnName('phosphorus', location, metric, columnNames), "'])")
-#	        
-#	        allfilters <- c(sitefilter, yearfilter, datefilter, ammoniumMinfilter, ammoniumMaxfilter, nitrateMinfilter, nitrateMaxfilter, phosphateMinfilter, phosphateMaxfilter, totalNMinfilter, totalNMaxfilter, totalPMinfilter, totalPMaxfilter)
-#	        
-#	        allfilters <- allfilters[unlist(lapply(allfilters, function(x) length(x) > 0))]
-#            if(length(allfilters)) {
-#                allfilters <- paste(allfilters, collapse=" & ")	 
-#                stmt <- paste0("dat[", allfilters, ",]")
-#                eval(parse(text=stmt))
-#            }   
+	        dat <- getSawKillLandUseDataBySubbasin()
+	        # Gather user selections from UI
+	        daterange <- input$filterdaterange
+	        site <- input$site
+	        year <- input$year
+	        subbasin <- input$subbasin
+
+	        # Set empty filter placeholders
+	        sitefilter <- yearfilter <- subbasinfilter <- character()
+	        # update placeholders with user selections
+	        if(length(site)) sitefilter <- paste0("dat[,'SiteID'] %in% c('", paste(site, collapse="', '"), "')")
+	        
+	        if(length(year)) yearfilter <- paste0("dat[,'year'] %in% c(", paste(year, collapse=", "), ")")
+	        
+	        datefilter <- paste0("dat[,'date'] >= as.Date('", daterange[1], "') & ", "dat[,'date'] <= as.Date('", daterange[2], "')")
+
+	        if(length(subbasin)) subbasinfilter <- paste0("dat[,'sub_basin'] %in% c('", paste0(subbasin, collapse="', '"), "')")
+	        
+	        
+	        # Remove missing values
+            if(length(sitefilter)) sitefilter <- paste0(sitefilter, " & !is.na(dat[,'SiteID'])")
+            
+            if(length(subbasinfilter)) subbasinfilter <- paste0(subbasinfilter, " & !is.na(dat[,'sub_basin'])")
+	        
+	        allfilters <- c(sitefilter, yearfilter, datefilter, subbasinfilter)
+
+	        allfilters <- allfilters[unlist(lapply(allfilters, function(x) length(x) > 0))]
+            if(length(allfilters)) {
+                allfilters <- paste(allfilters, collapse=" & ")	 
+                stmt <- paste0("dat[", allfilters, ",]")
+                eval(parse(text=stmt))
+            }
         })
 	    
 	    # Identify the table that is on screen
@@ -689,43 +807,152 @@ shinyServer(
                 } else if(metric == "landuse") {
                     choices <- c()
                 }
+                currentyaxis <- input$yaxis
+                if(currentyaxis != "") {
+                    if(currentyaxis %in% choices) {
+                        selected <- currentyaxis
+                    } else selected <- choices[1]
+                } else selected <- choices[1]
                 # Update the yaxis selector
-                updateSelectInput(session, "yaxis", choices=choices, selected=if(input$yaxis != "") input$yaxis else choices[1])
+                updateSelectInput(session, "yaxis", choices=choices, selected=selected)
                 # Update the statistics selector
                 updateCheckboxGroupInput(session, "tabularstatsattribute", choices=choices, selected=input$tabularstatsattribute)
             }         
 	    })
 	    
-	    # Make a chart
-	    output$chartcontent <- renderPlot({
-	        source("server/makePlot.R", local=TRUE)
+	    # Prep data for plotting
+	    plotData <- reactive({
+	        dat <- subsetTable()
+            dat <- dat$data
+            location <- tolower(input$location)
+            metric <- navigation$currentmetric
+            if(length(dat)) {
+                yvar <- input$yaxis
+                yax <- columnName(yvar, location, metric, columnNames)
+                if(is.na(yax)) yax <- ""
+                # X axis is hardcoded
+                xax <- columnName("date", location, metric, columnNames) 
+                if(is.na(xax)) xax <- ""
+                dat <- dat[order(dat[,xax]),]
+                spl <- columnName(input$split, location, metric, columnNames)
+                type <- input$graphtype
+                # UI label is "Remove Errors"
+                remove999 <- input$remove999
+                if(all(c(yax, xax) != "")) {
+                    if(remove999) dat <- dat[notErr(dat[,yax]),]
+                }
+                
+                threshdat <- getThresholdData()
+                rw <- which(grepl(yvar, threshdat[,'fieldName'], ignore.case=TRUE))[1]
+                if(!is.na(rw)) {
+                    thresh <- threshdat[rw, 'threshold']
+                    unit <- threshdat[rw, 'unit']
+                } else unit <- thresh <- NA
+                list(data=dat, yax=yax, xax=xax, thresh=thresh, unit=unit)
+            }
 	    })
 	    
-	    # Download chart
-	    output$downloadchart <- downloadHandler(
-	        filename=function() {
-	            dat <- subsetTable()
-	            paste0(dat$location, "_",  input$yaxis, ".png")
-	        },
-	        content=function(file) {
-	            png(file, width=1000, height=800)
-	            source("server/makePlot.R", local=TRUE)
-	            dev.off()
-	        },
-	        contentType="image/png"
-	    )
+	    
+	    # Plot the value by site
+	    output$sitelines <- renderD3({
+            dat <- plotData()
+            yax <- dat$yax
+            xax <- dat$xax
+            thresh <- dat$thresh
+            unit <- dat$unit
+            dat <- dat$data
+            location <- tolower(input$location)
+            metric <- navigation$currentmetric
+            if(yax != "") {
+                dat <- dat[c(xax, columnName("site", location, metric, columnNames), yax)]
+                names(dat) <- c("date", "site", "value")
+                dat <- na.omit(dat)
+                opts <- list(ylab=yax, threshold=thresh, unit=unit, loc=location, metric=yax)
+                opts <- opts[!unlist(lapply(opts, is.na))]
+                opts <- 
+                r2d3(
+                    data = dat, 
+                    script = "www/r2d3/siteplot.js", 
+                    options = opts
+                )
+            }
+	    })
+	    
+	    # Plot the value by year
+	    output$yearlines <- renderD3({
+            dat <- plotData()
+            yax <- dat$yax
+            xax <- dat$xax
+            thresh <- dat$thresh
+            unit <- dat$unit
+            dat <- dat$data
+            location <- tolower(input$location)
+            metric <- navigation$currentmetric
+            dateinfo <- as.POSIXlt(dat[,columnName("date", location, metric, columnNames)])
+            dat$day <- dateinfo$yday
+            dat$year <- dateinfo$year + 1900
+            if(yax != "") {
+                dat <- dat[c("year", columnName("site", location, metric, columnNames), yax, "day")]
+                names(dat) <- c("year", "site", "value", "day")
+                dat <- na.omit(dat)
+                opts <- list(ylab=yax, threshold=thresh, unit=unit, loc=location, metric=yax)
+                opts <- opts[!unlist(lapply(opts, is.na))]
+                r2d3(
+                    data = dat, 
+                    script = "www/r2d3/yearplot.js", 
+                    options = opts
+                )
+            }
+	    })
+	    
+	    # Show each d3 plot in its own container
+	    output$variableD3 <- renderUI({
+	        if(input$split == "year") {
+	            d3Output("yearlines", height="500px")
+	        } else {
+	            d3Output("sitelines", height="500px")
+	        }
+	    })
+
+        # Threshold data below the plot
+        output$thresholddefinition <- renderText({
+            yax <- input$yaxis
+            def <- switch(yax,
+                enterococc = "Enterococci 60 CFU- The EPA recommends that Enterococci levels within surface waters used for recreational purposes, such as swimming, should not exceed 60 colony forming units (cfu) per 100mL of water.",
+                temperature = "Temperature 20 degrees Celsius- Temperature affects the oxygen content of the water, the rate of photosynthesis by aquatic plants, the metabolic rates of aquatic organisms, and the sensitivity of organisms. We use the recommended temperature for brook trout, 20 degrees Celsius, as our indicator for water quality.",
+                conductivity = "Uncompensated Conductivity 500 uS- The EPA recommendation for freshwater streams is to not exceed 500 uS to maintain a healthy ecosystem for freshwater organisms.", 
+                ecoli = "E. coli 190 CFU- The EPA recommends that E. coli levels within surface waters used for recreational purposes, such as swimming, should not exceed 190 colony forming units (cfu) per 100mL of water.",
+                turbidity = "Turbidity 10 NTU- The degree to which turbidity affects aquatic systems and organisms depends on both the amount of sediment in the water and how long the turbidity lasts, 10 NTU is when fish start to show signs of stress."
+            )
+        })       
+        
+#       # This was the native R (PNG) plot and downloader
+#	    # Make a chart
+#	    output$chartcontent <- renderPlot({
+#	        source("server/makePlot.R", local=TRUE)
+#	    })
+	    
+#	    # Download chart
+#	    output$downloadchart <- downloadHandler(
+#	        filename=function() {
+#	            dat <- subsetTable()
+#	            paste0(dat$location, "_",  input$yaxis, ".png")
+#	        },
+#	        content=function(file) {
+#	            png(file, width=1000, height=800)
+#	            source("server/makePlot.R", local=TRUE)
+#	            dev.off()
+#	        },
+#	        contentType="image/png"
+#	    )
 	    
 	    
 	    # Make stats table
 	    statstable <- reactive({
-#	        metric <- navigation$currentmetric
-#            location <- input$location
-#	        dat <- fullTable()
 	        dat <- subsetTable()
 	        metric <- dat$metric
             location <- dat$location
 	        dat <- dat$data
-#	        daterange <- input$statisticsdaterange
 	        daterange <- input$filterdaterange
 	        sites <- na.omit(unique(dat[,columnName('site', location, metric, columnNames)]))
 	        sites <- sites[sites != "NA"]

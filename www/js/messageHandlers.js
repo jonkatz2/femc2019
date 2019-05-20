@@ -22,6 +22,11 @@ Shiny.addCustomMessageHandler("togglenutrientfilters",
         if(message.type == "nutrients") { $(this).removeClass("hidden") }
         else { $(this).addClass(" hidden") }
     });
+    var landcover = $(".landcover");
+    landcover.each(function() {
+        if(message.type == "landuse") { $(this).removeClass("hidden") }
+        else { $(this).addClass(" hidden") }
+    });
   }
 )
 

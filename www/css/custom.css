@@ -246,6 +246,7 @@ body {
 #chartbuttons {
     max-width: 60em;
     margin: auto;
+    text-align: center;
 }
 
 .leaflet-label-small {
@@ -378,7 +379,24 @@ body {
     padding-right: 1em;
 }
 
+.clearboth {
+    clear: both !important;
+    float: none;
+}
 
+.statistics-help {
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    display: inline;
+    padding: 5px;
+    font-size: 0.75em;
+    cursor: pointer;
+}
+
+#thresholddefinition {
+    text-align: center;
+}
 
 
 
