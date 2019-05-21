@@ -296,7 +296,8 @@ shinyServer(
                     className="leaflet-label-hidden",
                     direction="top"
                 ),
-                label = basinslabels
+                label = basinslabels,
+                group = "Basins"
             )
             for(i in 1:nrow(sites))
             m <- addCircleMarkers(m, 
@@ -321,7 +322,8 @@ shinyServer(
 #	        currentmap <- navigation$currentmap
 #	        if(currentmap == "sites") map <- sitesmap()
 #	        else map <- basinsmap()
-            map <- onemap()
+            if(input$location == "SawKill") map <- onemap()
+            else map <- sitesmap()
 	        map
         })	    
         
@@ -374,13 +376,14 @@ shinyServer(
 	    # Download site map as image
 	    output$downloadmapimage <- downloadHandler(
 	        file=function() {
-	            "Sawkill_RoeJan_sites.png"
+	            paste0(input$location, "_sites.png")
 	        },
 	        content=function(file) {
 #	            currentmap <- navigation$currentmap
 #	            if(currentmap == "sites") map <- sitesmap()
 #	            else map <- basinsmap()
-                map <- onemap()
+                if(input$location == "SawKill") map <- onemap()
+                else map <- sitesmap()
 	            map
                 mapview::mapshot(map, file = file)
 	        },
@@ -400,15 +403,15 @@ shinyServer(
                     rgdal::writeOGR(sitesmap$points, paste0(location, "_studysites"), paste0(location, "_studysites"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
                     rgdal::writeOGR(basinsmap, paste0(location, "_studysites"), paste0(location, "_basins"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=FALSE)
                 } else {
-                    map <- getRoejanLocations()
-                    rgdal::writeOGR(map, paste0(location, "_studysites"), paste0(location, "_studysites"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
+                    map <- getRoeJanLocations()
+                    rgdal::writeOGR(map$points, paste0(location, "_studysites"), paste0(location, "_studysites"), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
                 }
 #	            currentmap <- navigation$currentmap
 #                if(location == "SawKill") {
 #                    if(currentmap == "sites") map <- getSawkillLocations()
 #                    else map <- getSawkillBasins()
 #                } else {
-#                    if(currentmap == "sites") map <- getRoejanLocations()
+#                    if(currentmap == "sites") map <- getRoeJanLocations()
 #                    else map <- getRoejanBasins()
 #                }
 #	            rgdal::writeOGR(map, paste0(location, currentmap), paste0(location, currentmap), driver="ESRI Shapefile", overwrite_layer=TRUE, delete_dsn=TRUE)
@@ -752,7 +755,7 @@ shinyServer(
 	    fullTable <- reactive({
 	        location <- input$location
 	        metric <- navigation$currentmetric
-	        if(location == "SawKill") datfun <- switch(metric, chemistry=getSawKillChemData, nutrients=getSawKillNutrientData)
+	        if(location == "SawKill") datfun <- switch(metric, chemistry=getSawKillChemData, nutrients=getSawKillNutrientData, landuse=getSawKillLandUseData)
             else if(location == "RoeJan") datfun <- switch(metric, chemistry=getRoeJanChemData)
 	        
 	        dat <- do.call(datfun, list())
@@ -763,7 +766,7 @@ shinyServer(
 	    output$tablecontent <- DT::renderDataTable({
 	        dat <- subsetTable()
 	        dat$data
-	    })
+	    }, rownames=FALSE)
 	    
 	    # download the full table
 	    output$downloadfulltable <- downloadHandler(

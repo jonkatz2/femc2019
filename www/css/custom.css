@@ -398,5 +398,22 @@ body {
     text-align: center;
 }
 
+.tooltip-inner {
+    max-width: 300px;
+    padding: 3px 8px;
+    color: #fff;
+    text-align: center;
+    background-color: #000;
+    border-radius: 4px;
+    font-size: 1.2em;
+}
 
+/*the notes column*/
+#tablecontent table td:nth-child(112) {
+  min-width: 700px;
+}
 
+/*the weath column*/
+#tablecontent table td:nth-child(106) {
+  min-width: 200px;
+}
